@@ -1,0 +1,385 @@
+/* ===========================================================================
+   HighLo design tokens
+   Palette: poker-felt green, casino red, dark charcoal grey, warm white.
+   A muted brass tone is used only as a hairline rail accent (the wood/brass
+   trim around a real blackjack table), never as a fill color.
+=========================================================================== */
+:root {
+  --felt: #0e3d2d;
+  --felt-dark: #082a1f;
+  --felt-light: #145038;
+  --charcoal: #1b1c1d;
+  --charcoal-light: #2a2c2c;
+  --charcoal-lighter: #3a3d3c;
+  --red: #a72a2e;
+  --red-bright: #d1393f;
+  --white: #f4f2ea;
+  --white-dim: #c7c9c1;
+  --white-faint: #8d918a;
+  --brass: #a8863f;
+  --confidence-high: #3f9d5c;
+  --confidence-medium: #d1a13a;
+  --confidence-low: #c14b4b;
+
+  --font-display: "Bebas Neue", "Arial Narrow", sans-serif;
+  --font-body: "Inter", -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-mono: "Space Mono", monospace;
+
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 14px;
+
+  --shadow-panel: 0 8px 24px rgba(0, 0, 0, 0.35);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  font-family: var(--font-body);
+  color: var(--white);
+  background:
+    radial-gradient(ellipse at center, var(--felt-light) 0%, var(--felt) 45%, var(--felt-dark) 100%);
+  background-attachment: fixed;
+  -webkit-font-smoothing: antialiased;
+}
+
+button,
+input,
+select {
+  font-family: inherit;
+}
+
+a {
+  color: inherit;
+}
+
+/* Visible keyboard focus, kept subtle but real */
+:focus-visible {
+  outline: 2px solid var(--brass);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.001ms !important;
+    transition-duration: 0.001ms !important;
+  }
+}
+
+.hlo-app {
+  min-height: 100%;
+}
+
+/* ---------------------------------------------------------------------
+   Shared layout primitives
+--------------------------------------------------------------------- */
+.hlo-panel {
+  background: linear-gradient(180deg, var(--charcoal-light), var(--charcoal));
+  border: 1px solid rgba(168, 134, 63, 0.25);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-panel);
+}
+
+.hlo-panel__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 18px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.hlo-panel__title {
+  font-family: var(--font-display);
+  letter-spacing: 0.04em;
+  font-size: 1.35rem;
+  margin: 0;
+  color: var(--white);
+}
+
+.hlo-panel__body {
+  padding: 16px 18px;
+}
+
+.hlo-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--white-dim);
+}
+
+.hlo-btn {
+  font-family: var(--font-body);
+  font-weight: 600;
+  font-size: 0.95rem;
+  padding: 10px 20px;
+  border-radius: var(--radius-md);
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: transform 0.12s ease, filter 0.12s ease;
+}
+.hlo-btn:hover {
+  filter: brightness(1.08);
+}
+.hlo-btn:active {
+  transform: scale(0.98);
+}
+.hlo-btn--primary {
+  background: var(--red);
+  color: var(--white);
+}
+.hlo-btn--ghost {
+  background: transparent;
+  border-color: rgba(244, 242, 234, 0.35);
+  color: var(--white);
+}
+.hlo-btn--brass {
+  background: var(--brass);
+  color: var(--charcoal);
+}
+.hlo-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  filter: none;
+}
+
+.hlo-info-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 1px solid var(--white-faint);
+  color: var(--white-faint);
+  font-size: 0.65rem;
+  font-family: var(--font-body);
+  cursor: help;
+  position: relative;
+  flex-shrink: 0;
+}
+.hlo-info-icon:hover .hlo-info-icon__tooltip,
+.hlo-info-icon:focus-visible .hlo-info-icon__tooltip {
+  display: block;
+}
+.hlo-info-icon__tooltip {
+  display: none;
+  position: absolute;
+  bottom: 130%;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 200px;
+  background: var(--charcoal);
+  border: 1px solid rgba(168, 134, 63, 0.4);
+  color: var(--white-dim);
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  font-size: 0.72rem;
+  line-height: 1.35;
+  z-index: 20;
+  box-shadow: var(--shadow-panel);
+}
+
+/* ---------------------------------------------------------------------
+   Playing cards
+--------------------------------------------------------------------- */
+.hlo-card {
+  position: relative;
+  background: var(--white);
+  border: none;
+  border-radius: 6px;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.4);
+  font-family: var(--font-mono);
+  font-weight: 700;
+  padding: 0;
+  cursor: default;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+button.hlo-card {
+  cursor: pointer;
+}
+.hlo-card--black {
+  color: var(--charcoal);
+}
+.hlo-card--red {
+  color: var(--red);
+}
+.hlo-card--back {
+  background: repeating-linear-gradient(
+    135deg,
+    var(--felt-light) 0px,
+    var(--felt-light) 4px,
+    var(--felt-dark) 4px,
+    var(--felt-dark) 8px
+  );
+  border: 2px solid var(--brass);
+}
+.hlo-card--flagged {
+  outline: 2px solid var(--confidence-low);
+  outline-offset: 1px;
+}
+.hlo-card__corner {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  line-height: 1;
+}
+.hlo-card__corner--tl {
+  top: 4px;
+  left: 4px;
+}
+.hlo-card__corner--br {
+  bottom: 4px;
+  right: 4px;
+  transform: rotate(180deg);
+}
+.hlo-card__center {
+  opacity: 0.9;
+}
+.hlo-card__flag {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  background: var(--confidence-low);
+  color: var(--white);
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  font-size: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.hlo-card-row {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+/* ---------------------------------------------------------------------
+   Confidence indicator
+--------------------------------------------------------------------- */
+.hlo-confidence-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  display: inline-block;
+}
+.hlo-confidence-dot--high {
+  background: var(--confidence-high);
+  box-shadow: 0 0 6px var(--confidence-high);
+}
+.hlo-confidence-dot--medium {
+  background: var(--confidence-medium);
+  box-shadow: 0 0 6px var(--confidence-medium);
+}
+.hlo-confidence-dot--low {
+  background: var(--confidence-low);
+  box-shadow: 0 0 6px var(--confidence-low);
+}
+
+/* ---------------------------------------------------------------------
+   Top nav
+--------------------------------------------------------------------- */
+.hlo-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 28px;
+  background: rgba(8, 42, 31, 0.7);
+  border-bottom: 1px solid rgba(168, 134, 63, 0.3);
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  backdrop-filter: blur(6px);
+}
+.hlo-nav__brand {
+  font-family: var(--font-display);
+  font-size: 1.6rem;
+  letter-spacing: 0.05em;
+  color: var(--white);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.hlo-nav__brand span {
+  color: var(--red-bright);
+}
+.hlo-nav__links {
+  display: flex;
+  gap: 6px;
+}
+.hlo-nav__link {
+  padding: 8px 14px;
+  border-radius: var(--radius-md);
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--white-dim);
+  text-decoration: none;
+}
+.hlo-nav__link.active,
+.hlo-nav__link:hover {
+  background: rgba(244, 242, 234, 0.08);
+  color: var(--white);
+}
+.hlo-nav__seat {
+  font-size: 0.85rem;
+  color: var(--white-dim);
+}
+
+/* ---------------------------------------------------------------------
+   Mobile bottom tab bar
+--------------------------------------------------------------------- */
+.hlo-tabbar {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  background: var(--charcoal);
+  border-top: 1px solid rgba(168, 134, 63, 0.3);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  z-index: 40;
+}
+.hlo-tabbar__item {
+  flex: 1;
+  text-align: center;
+  padding: 10px 4px 8px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--white-faint);
+  text-decoration: none;
+  border-top: 2px solid transparent;
+}
+.hlo-tabbar__item.active {
+  color: var(--white);
+  border-top-color: var(--red-bright);
+}
+
+.hlo-page {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 24px 28px 60px;
+}
+
+@media (max-width: 720px) {
+  .hlo-page {
+    padding: 14px 14px 84px;
+  }
+}
