@@ -56,17 +56,6 @@ export default function MasterView() {
         </div>
       </div>
 
-      <div style={{ display: "flex", gap: 10, marginTop: 18, flexWrap: "wrap" }}>
-        <Link to="/table" className="hlo-btn hlo-btn--ghost" style={{ textDecoration: "none" }}>
-          Table view
-        </Link>
-        <Link to="/analysis" className="hlo-btn hlo-btn--ghost" style={{ textDecoration: "none" }}>
-          Analysis report
-        </Link>
-        <Link to="/count" className="hlo-btn hlo-btn--ghost" style={{ textDecoration: "none" }}>
-          Running count view
-        </Link>
-      </div>
     </div>
   );
 }
