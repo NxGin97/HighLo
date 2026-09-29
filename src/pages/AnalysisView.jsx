@@ -14,7 +14,7 @@ function StatCard({ label, value, sub }) {
 export default function AnalysisView() {
   const { analysis, isGuest } = useAppState();
   const locked = analysis.handsPlayed < analysis.minHandsRequired;
-  const maxAccuracy = Math.max(...analysis.trend.map((t) => t.accuracy));
+  const maxWinRate = Math.max(...analysis.trend.map((t) => t.winRate));
 
   if (isGuest) {
     return (
@@ -61,26 +61,37 @@ export default function AnalysisView() {
             <StatCard label="Betting behavior" value="Flat / occasional 2x" sub={analysis.bettingBehavior} />
           </div>
 
+          <div className="hlo-panel" style={{ marginBottom: 20 }}>
+            <div className="hlo-panel__header">
+              <h3 className="hlo-panel__title">What we've noticed</h3>
+            </div>
+            <div className="hlo-panel__body">
+              <p style={{ margin: 0, color: "var(--white-dim)", fontSize: "0.88rem", lineHeight: 1.6 }}>
+                {analysis.description}
+              </p>
+            </div>
+          </div>
+
           <div className="hlo-panel">
             <div className="hlo-panel__header">
-              <h3 className="hlo-panel__title">Improvement Trend</h3>
+              <h3 className="hlo-panel__title">Win Rate by Day</h3>
             </div>
             <div className="hlo-panel__body">
               <div style={{ display: "flex", alignItems: "flex-end", gap: 18, height: 160 }}>
                 {analysis.trend.map((t) => (
-                  <div key={t.session} style={{ display: "flex", flexDirection: "column", alignItems: "center", flex: 1 }}>
+                  <div key={t.date} style={{ display: "flex", flexDirection: "column", alignItems: "center", flex: 1 }}>
                     <div style={{ fontSize: "0.7rem", marginBottom: 4, color: "var(--white-dim)" }}>
-                      {Math.round(t.accuracy * 100)}%
+                      {Math.round(t.winRate * 100)}%
                     </div>
                     <div
                       style={{
                         width: "60%",
-                        height: `${(t.accuracy / maxAccuracy) * 120}px`,
+                        height: `${(t.winRate / maxWinRate) * 120}px`,
                         background: "linear-gradient(180deg, var(--red-bright), var(--red))",
                         borderRadius: "4px 4px 0 0",
                       }}
                     />
-                    <div style={{ fontSize: "0.68rem", marginTop: 6, color: "var(--white-faint)" }}>{t.session}</div>
+                    <div style={{ fontSize: "0.68rem", marginTop: 6, color: "var(--white-faint)" }}>{t.date}</div>
                   </div>
                 ))}
               </div>

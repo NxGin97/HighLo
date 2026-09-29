@@ -1,13 +1,14 @@
 import React from "react";
 import { useAppState } from "../../state/AppStateContext.jsx";
-import CameraFeed from "../../components/CameraFeed.jsx";
+import Dealer from "../../components/Dealer.jsx";
 import ActivePlayers from "../../components/ActivePlayers.jsx";
 import RecommendationPanel from "../../components/RecommendationPanel.jsx";
 
+// Mobile is player-focused: the camera overview lives on desktop only.
+// A phone at the table just needs the dealer's hand, the player's own
+// hand(s), and their recommended move.
 export default function MobileCurrentHand() {
-  const { players, selectedSeat, isGuest } = useAppState();
-  const selfPlayer = players.find((p) => p.seat === selectedSeat);
-  const isSelfTurn = selfPlayer ? selfPlayer.isTurn : false;
+  const { selectedSeat } = useAppState();
 
   return (
     <div className="hlo-page" style={{ display: "flex", flexDirection: "column", gap: 14 }}>
@@ -15,11 +16,11 @@ export default function MobileCurrentHand() {
 
       <div className="hlo-panel">
         <div className="hlo-panel__body">
-          <CameraFeed compact />
+          <Dealer compact />
         </div>
       </div>
 
-      <RecommendationPanel isViewerTurn={isSelfTurn} viewerIsGuest={isGuest} compact />
+      <RecommendationPanel compact />
 
       <div className="hlo-panel">
         <div className="hlo-panel__header">

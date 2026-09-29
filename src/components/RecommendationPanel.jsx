@@ -1,10 +1,13 @@
 import React from "react";
 import { useAppState } from "../state/AppStateContext.jsx";
+import { basicStrategyAction, buildStrategyRow, handTypeLabel } from "../lib/strategy.js";
 
 const ACTION_COLOR = {
   HIT: "var(--red-bright)",
   STAND: "#3f7fd1",
   DOUBLE: "var(--confidence-high)",
+  SPLIT: "var(--brass)",
+  SURRENDER: "var(--charcoal-lighter)",
 };
 
 function InfoIcon({ text }) {
@@ -28,45 +31,155 @@ function Metric({ label, value, info }) {
   );
 }
 
+function ScopeToggle({ scope, setScope }) {
+  return (
+    <div className="hlo-toggle" role="radiogroup" aria-label="Recommendation visibility">
+      <button
+        type="button"
+        role="radio"
+        aria-checked={scope === "all"}
+        className={`hlo-toggle__option ${scope === "all" ? "active" : ""}`}
+        onClick={() => setScope("all")}
+      >
+        All turns
+      </button>
+      <button
+        type="button"
+        role="radio"
+        aria-checked={scope === "mine"}
+        className={`hlo-toggle__option ${scope === "mine" ? "active" : ""}`}
+        onClick={() => setScope("mine")}
+      >
+        My turn only
+      </button>
+    </div>
+  );
+}
+
+function StrategyChart({ cards, dealerUpCode }) {
+  const row = buildStrategyRow(cards, dealerUpCode);
+  return (
+    <div style={{ marginTop: 14 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 5, marginBottom: 6 }}>
+        <span style={{ fontSize: "0.72rem", fontWeight: 600, color: "var(--white-dim)" }}>
+          Strategy chart — {handTypeLabel(cards)}
+        </span>
+        <InfoIcon text="The standard basic-strategy move for this hand against each possible dealer up card. Your dealer's actual up card is highlighted." />
+      </div>
+      <div style={{ overflowX: "auto" }}>
+        <table className="hlo-strategy-table">
+          <thead>
+            <tr>
+              {row.map((cell) => (
+                <th key={cell.col}>{cell.col}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              {row.map((cell) => (
+                <td
+                  key={cell.col}
+                  className={cell.active ? "active-cell" : ""}
+                  style={{ color: ACTION_COLOR[cell.action] }}
+                >
+                  {cell.action[0]}
+                </td>
+              ))}
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
 /**
  * RecommendationPanel
- * `viewerIsGuest`: guests see recommendations for every seat.
- * `isViewerTurn`: logged-in users only see the recommendation + it fades
- * when it isn't their turn (visibility rule from the spec).
+ * Shows the recommendation for whichever seat is "in view": under the
+ * "all" scope that's whoever's turn is currently active (visible to
+ * everyone, every turn); under "mine" it's only shown when it's the
+ * viewer's own seat's turn. The basic-strategy chart is cross-checked
+ * against the engine's suggested action and nudges the displayed
+ * confidence up (agreement) or down (disagreement).
  */
-export default function RecommendationPanel({ isViewerTurn = true, viewerIsGuest = false, compact = false }) {
-  const { recommendation, midShoeJoin, analysis, isGuest } = useAppState();
-  const guest = viewerIsGuest || isGuest;
-  const dimmed = !guest && !isViewerTurn;
+export default function RecommendationPanel({ compact = false }) {
+  const {
+    recommendation,
+    midShoeJoin,
+    analysis,
+    isGuest,
+    players,
+    selectedSeat,
+    dealer,
+    recommendationScope,
+    setRecommendationScope,
+  } = useAppState();
+
+  const activeTurnPlayer = players.find((p) => p.isTurn);
+  const showForSelfOnly = recommendationScope === "mine";
+  const displayedPlayer =
+    activeTurnPlayer && (!showForSelfOnly || activeTurnPlayer.seat === selectedSeat) ? activeTurnPlayer : null;
+
+  const activeHand = displayedPlayer ? displayedPlayer.hands[displayedPlayer.hands.length - 1] : null;
+  const dealerUpCard = dealer.cards[0];
+
+  let adjustedConfidence = recommendation.recommendationConfidence;
+  let strategyAction = null;
+  let matchesStrategy = null;
+  if (activeHand) {
+    strategyAction = basicStrategyAction(activeHand.cards, dealerUpCard);
+    matchesStrategy = strategyAction === recommendation.action;
+    adjustedConfidence = matchesStrategy
+      ? Math.min(0.99, recommendation.recommendationConfidence + 0.08)
+      : Math.max(0.4, recommendation.recommendationConfidence - 0.15);
+  }
 
   return (
-    <div
-      className="hlo-panel"
-      style={{ opacity: dimmed ? 0.4 : 1, transition: "opacity 0.25s ease" }}
-    >
+    <div className="hlo-panel">
       <div className="hlo-panel__header">
         <h3 className="hlo-panel__title">Recommendation</h3>
-        {midShoeJoin.isMidShoeJoin && (
-          <span className="hlo-pill" title="Tracking started after cards were already dealt this shoe">
-            Mid-shoe join
-          </span>
-        )}
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          {midShoeJoin.isMidShoeJoin && (
+            <span className="hlo-pill" title="Tracking started after cards were already dealt this shoe">
+              Mid-shoe join
+            </span>
+          )}
+          <ScopeToggle scope={recommendationScope} setScope={setRecommendationScope} />
+        </div>
       </div>
       <div className="hlo-panel__body">
-        {guest || isViewerTurn ? (
+        {displayedPlayer ? (
           <>
+            <div style={{ fontSize: "0.72rem", color: "var(--white-faint)", marginBottom: 8 }}>
+              Seat {displayedPlayer.seat}
+              {displayedPlayer.seat === selectedSeat ? " (you)" : ""}'s turn
+            </div>
+
+            {/* Colored, high-contrast action box */}
             <div
               style={{
+                display: "inline-block",
+                background: ACTION_COLOR[recommendation.action],
+                color: "var(--white)",
                 fontFamily: "var(--font-display)",
-                fontSize: compact ? "2.2rem" : "3rem",
-                letterSpacing: "0.03em",
-                color: ACTION_COLOR[recommendation.action],
-                lineHeight: 1,
+                fontSize: compact ? "1.8rem" : "2.4rem",
+                letterSpacing: "0.04em",
+                padding: compact ? "8px 22px" : "10px 30px",
+                borderRadius: "var(--radius-md)",
+                boxShadow: "0 4px 14px rgba(0,0,0,0.35)",
                 marginBottom: 14,
               }}
             >
               {recommendation.action}
             </div>
+
+            {matchesStrategy === false && (
+              <p style={{ fontSize: "0.72rem", color: "var(--confidence-medium)", marginTop: -6, marginBottom: 12 }}>
+                Basic strategy chart suggests {strategyAction} instead — confidence lowered.
+              </p>
+            )}
+
             <div
               style={{
                 display: "grid",
@@ -81,8 +194,8 @@ export default function RecommendationPanel({ isViewerTurn = true, viewerIsGuest
               />
               <Metric
                 label="Recommendation confidence"
-                value={`${Math.round(recommendation.recommendationConfidence * 100)}%`}
-                info="How strongly basic strategy + count favor this move over the alternatives."
+                value={`${Math.round(adjustedConfidence * 100)}%`}
+                info="How strongly this move is favored, adjusted up or down by whether it agrees with the basic-strategy chart below."
               />
               <Metric
                 label="Dealer bust probability"
@@ -100,20 +213,25 @@ export default function RecommendationPanel({ isViewerTurn = true, viewerIsGuest
                 info="Hi-Lo running total of every card seen since the last shuffle."
               />
             </div>
+
             {midShoeJoin.isMidShoeJoin && (
               <p style={{ fontSize: "0.72rem", color: "var(--white-faint)", marginTop: 12 }}>
                 Count may be incomplete — tracking joined this shoe already in progress (
                 {Math.round(midShoeJoin.countReliability * 100)}% estimated reliability).
               </p>
             )}
+
+            <StrategyChart cards={activeHand.cards} dealerUpCode={dealerUpCard} />
           </>
         ) : (
           <p style={{ color: "var(--white-faint)", fontSize: "0.85rem" }}>
-            Recommendation hidden until it's your turn.
+            {showForSelfOnly
+              ? "Recommendation hidden until it's your turn."
+              : "Waiting for the next turn to begin."}
           </p>
         )}
 
-        {!guest && (
+        {!isGuest && (
           <div style={{ marginTop: 18, paddingTop: 14, borderTop: "1px solid rgba(255,255,255,0.08)" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <span style={{ fontSize: "0.8rem", fontWeight: 600 }}>Your playstyle analysis</span>

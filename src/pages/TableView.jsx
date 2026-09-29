@@ -2,6 +2,7 @@ import React from "react";
 import { useAppState } from "../state/AppStateContext.jsx";
 import CameraFeed from "../components/CameraFeed.jsx";
 import ActivePlayers from "../components/ActivePlayers.jsx";
+import Dealer from "../components/Dealer.jsx";
 
 export default function TableView() {
   const { midShoeJoin } = useAppState();
@@ -26,6 +27,9 @@ export default function TableView() {
           <h3 className="hlo-panel__title">All Seats</h3>
         </div>
         <div className="hlo-panel__body">
+          <div style={{ marginBottom: 16 }}>
+            <Dealer />
+          </div>
           <ActivePlayers />
         </div>
       </div>

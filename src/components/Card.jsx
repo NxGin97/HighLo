@@ -61,10 +61,18 @@ const SIZE_STYLES = {
 
 /**
  * Card
- * Renders a single playing card. Pass `code` (e.g. "AS", "10H"). Pass
- * `faceDown` to render the card back (used for a dealer hole card that
- * hasn't been revealed yet). `flagged` marks a card the CV pipeline is
- * unsure about (drives the manual-correction affordance upstream).
+ * Renders a single playing card. Pass `code` (e.g. "AS", "10H").
+ *
+ * - `faceDown`: renders the felt-patterned card back (dealer hole card).
+ * - `flagged`: marks a card the CV pipeline is unsure about (drives the
+ *    manual-correction affordance upstream).
+ * - `variant="count"`: the simplified style used in the running-count
+ *    history — a big centered rank + suit, with an optional count badge
+ *    in the top-right corner, colored to match the suit.
+ * - `hidden`: (variant="count" only) renders the branded HL card back
+ *    used when the player hides the count history to practice.
+ * - `animate`: plays a short "dealt in" entrance animation on mount
+ *    (defaults on; new cards animate in, existing ones don't re-trigger).
  */
 export default function Card({
   code = "AS",
@@ -73,18 +81,64 @@ export default function Card({
   flagged = false,
   onClick,
   className = "",
+  variant = "standard",
+  countValue,
+  hidden = false,
+  animate = true,
 }) {
   const { rank, suit } = parseCard(code);
   const isRed = RED_SUITS.includes(suit);
   const dims = SIZE_STYLES[size] || SIZE_STYLES.md;
+  const animClass = animate ? "hlo-card--enter" : "";
+
+  // Branded hidden-count card: dark charcoal, white border, "HL" mark.
+  if (variant === "count" && hidden) {
+    return (
+      <div
+        className={`hlo-card hlo-card--brandback ${animClass} ${className}`}
+        style={{ width: dims.width, height: dims.height }}
+        aria-label="Hidden card"
+      >
+        <span style={{ fontFamily: "var(--font-display)", fontSize: dims.fontSize * 1.3, letterSpacing: "0.02em" }}>
+          <span style={{ color: "var(--red-bright)" }}>H</span>
+          <span style={{ color: "var(--white)" }}>L</span>
+        </span>
+      </div>
+    );
+  }
 
   if (faceDown) {
     return (
       <div
-        className={`hlo-card hlo-card--back ${className}`}
+        className={`hlo-card hlo-card--back ${animClass} ${className}`}
         style={{ width: dims.width, height: dims.height }}
         aria-label="Face-down card"
       />
+    );
+  }
+
+  if (variant === "count") {
+    return (
+      <div
+        className={`hlo-card hlo-card--count ${isRed ? "hlo-card--red" : "hlo-card--black"} ${animClass} ${className}`}
+        style={{ width: dims.width, height: dims.height }}
+        aria-label={`${rank} of ${SUIT_NAME[suit]}`}
+      >
+        {countValue !== undefined && (
+          <span
+            className="hlo-card__count-badge"
+            style={{ color: isRed ? "var(--red-bright)" : "var(--charcoal)" }}
+          >
+            {countValue > 0 ? `+${countValue}` : countValue}
+          </span>
+        )}
+        <span className="hlo-card__big-rank" style={{ fontSize: dims.fontSize * 1.5 }}>
+          {rank}
+        </span>
+        <span className="hlo-card__big-suit" style={{ fontSize: dims.fontSize }}>
+          {SUIT_SYMBOL[suit]}
+        </span>
+      </div>
     );
   }
 
@@ -93,7 +147,7 @@ export default function Card({
       type="button"
       className={`hlo-card ${isRed ? "hlo-card--red" : "hlo-card--black"} ${
         flagged ? "hlo-card--flagged" : ""
-      } ${className}`}
+      } ${animClass} ${className}`}
       style={{ width: dims.width, height: dims.height, fontSize: dims.fontSize }}
       onClick={onClick}
       aria-label={`${rank} of ${SUIT_NAME[suit]}`}
@@ -119,7 +173,7 @@ export default function Card({
   );
 }
 
-/** Small row of cards, used everywhere a hand needs to render. */
+/** Small row of cards, used wherever a flat row (no shaped layout) works. */
 export function CardRow({ cards = [], size = "md", onCardClick, flaggedIndexes = [] }) {
   return (
     <div className="hlo-card-row">
@@ -132,6 +186,66 @@ export function CardRow({ cards = [], size = "md", onCardClick, flaggedIndexes =
           onClick={onCardClick ? () => onCardClick(i, code) : undefined}
         />
       ))}
+    </div>
+  );
+}
+
+// How many cards sit in each row for a given hand size: 1-2 cards is a
+// single row, 3 fans into a triangle (2 over 1), 4 into a square (2x2),
+// 5 is 2-over-3, and 6 is 2-over-4.
+function rowsForCount(n) {
+  if (n <= 2) return [n];
+  if (n === 3) return [2, 1];
+  if (n === 4) return [2, 2];
+  if (n === 5) return [2, 3];
+  if (n === 6) return [2, 4];
+  // Beyond 6 (shouldn't happen in blackjack): wrap everything evenly.
+  const first = Math.ceil(n / 2);
+  return [first, n - first];
+}
+
+/**
+ * CardCluster
+ * Shapes a hand's cards into a triangle/square/pyramid once it grows
+ * beyond two cards (per the "3=triangle, 4=square, 5=2-over-3,
+ * 6=2-over-4" layout). New cards animate in via Card's own entrance
+ * transition; nothing here needs to re-animate existing ones.
+ */
+export function CardCluster({ cards = [], size = "md", onCardClick, flaggedIndexes = [] }) {
+  const rows = rowsForCount(cards.length);
+  let cursor = 0;
+
+  return (
+    <div
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        gap: 6,
+        alignItems: "center",
+        transition: "all 0.25s ease",
+      }}
+    >
+      {rows.map((rowCount, rowIdx) => {
+        const rowCards = cards.slice(cursor, cursor + rowCount);
+        const startIndex = cursor;
+        cursor += rowCount;
+        return (
+          <div key={rowIdx} className="hlo-card-row" style={{ justifyContent: "center" }}>
+            {rowCards.map((code, i) => {
+              const flatIndex = startIndex + i;
+              return (
+                <Card
+                  key={`${flatIndex}-${code}`}
+                  code={code}
+                  size={size}
+                  flagged={flaggedIndexes.includes(flatIndex)}
+                  onClick={onCardClick ? () => onCardClick(flatIndex, code) : undefined}
+                />
+              );
+            })}
+          </div>
+        );
+      })}
     </div>
   );
 }

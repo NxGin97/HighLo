@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import Card, { CardRow, RANKS, SUITS, handValue } from "./Card.jsx";
+import { CardCluster, RANKS, SUITS, handValue } from "./Card.jsx";
 import { useAppState } from "../state/AppStateContext.jsx";
 
 const CONFIDENCE_LABEL = { high: "High", medium: "Medium", low: "Low" };
@@ -170,28 +170,62 @@ function PlayerSeat({ player, isSelf, compact }) {
         </span>
       </div>
 
-      {player.hands.map((hand, hIdx) => {
-        const resolvedCards = hand.cards.map((c, i) => resolvedCard(hIdx, i, c));
-        return (
-          <div key={hIdx} style={{ marginBottom: hIdx < player.hands.length - 1 ? 10 : 0 }}>
-            {hand.isSplit && (
-              <div style={{ fontSize: "0.68rem", color: "var(--white-faint)", marginBottom: 4 }}>
-                Split hand {hIdx + 1}
+      {/* Primary hand (hands[0]) renders full size. Any extra hand from a
+          split renders smaller and to the LEFT of it, one row, so a
+          two-hand seat reads as "small hand — main hand" left to right.
+          Card entrance animation (see Card.jsx) makes a newly-appearing
+          split hand ease in smoothly rather than popping in. */}
+      <div style={{ display: "flex", alignItems: "flex-end", gap: 14, flexWrap: "wrap" }}>
+        {[...player.hands]
+          .map((hand, hIdx) => ({ hand, hIdx }))
+          .slice(1)
+          .reverse()
+          .map(({ hand, hIdx }) => {
+            const resolvedCards = hand.cards.map((c, i) => resolvedCard(hIdx, i, c));
+            return (
+              <div key={hIdx} className="hlo-card--enter" style={{ opacity: 0.85 }}>
+                {hand.isSplit && (
+                  <div style={{ fontSize: "0.62rem", color: "var(--white-faint)", marginBottom: 4 }}>
+                    Split hand {hIdx + 1}
+                  </div>
+                )}
+                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  <CardCluster
+                    cards={resolvedCards}
+                    size="sm"
+                    onCardClick={(cardIndex, code) => setEditing({ handIndex: hIdx, cardIndex, code })}
+                  />
+                  <span style={{ fontFamily: "var(--font-display)", fontSize: "1.05rem" }}>
+                    {handValue(resolvedCards)}
+                  </span>
+                </div>
               </div>
-            )}
-            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              <CardRow
-                cards={resolvedCards}
-                size={compact ? "sm" : "md"}
-                onCardClick={(cardIndex, code) => setEditing({ handIndex: hIdx, cardIndex, code })}
-              />
-              <span style={{ fontFamily: "var(--font-display)", fontSize: compact ? "1.1rem" : "1.4rem" }}>
-                {handValue(resolvedCards)}
-              </span>
+            );
+          })}
+
+        {player.hands.slice(0, 1).map((hand, hIdx) => {
+          const resolvedCards = hand.cards.map((c, i) => resolvedCard(hIdx, i, c));
+          return (
+            <div key={hIdx}>
+              {hand.isSplit && (
+                <div style={{ fontSize: "0.68rem", color: "var(--white-faint)", marginBottom: 4 }}>
+                  Main hand
+                </div>
+              )}
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <CardCluster
+                  cards={resolvedCards}
+                  size={compact ? "sm" : "md"}
+                  onCardClick={(cardIndex, code) => setEditing({ handIndex: hIdx, cardIndex, code })}
+                />
+                <span style={{ fontFamily: "var(--font-display)", fontSize: compact ? "1.1rem" : "1.4rem" }}>
+                  {handValue(resolvedCards)}
+                </span>
+              </div>
             </div>
-          </div>
-        );
-      })}
+          );
+        })}
+      </div>
 
       {player.lastAction && !compact && (
         <div style={{ marginTop: 8, fontSize: "0.7rem", color: "var(--white-faint)" }}>
@@ -208,23 +242,31 @@ function PlayerSeat({ player, isSelf, compact }) {
 
 /**
  * ActivePlayers
- * Grid of up to six seats. `compact` tightens spacing/card size for the
- * mobile "current hand" view where only a couple of seats fit on screen.
+ * Row of up to six seats, laid out right-to-left (seat 1 on the right)
+ * to mirror how a real table deals: the dealer works clockwise, which
+ * from a seated player's point of view moves right to left.
+ * `compact` tightens spacing/card size for the mobile "current hand"
+ * view where only the viewer's own seat is shown (see `onlySeat`).
  */
 export default function ActivePlayers({ compact = false, onlySeat = null }) {
   const { players, selectedSeat } = useAppState();
-  const visible = onlySeat ? players.filter((p) => p.seat === onlySeat) : players;
+  const visible = onlySeat
+    ? players.filter((p) => p.seat === onlySeat)
+    : [...players].sort((a, b) => b.seat - a.seat); // seat 6 first (left) ... seat 1 last (right)
 
   return (
     <div
       style={{
-        display: "grid",
-        gridTemplateColumns: compact ? "1fr" : "repeat(auto-fit, minmax(150px, 1fr))",
+        display: "flex",
+        flexDirection: "row",
+        flexWrap: "wrap",
         gap: 10,
       }}
     >
       {visible.map((p) => (
-        <PlayerSeat key={p.seat} player={p} isSelf={p.seat === selectedSeat} compact={compact} />
+        <div key={p.seat} style={{ flex: compact ? "1 1 100%" : "1 1 150px", minWidth: 150 }}>
+          <PlayerSeat player={p} isSelf={p.seat === selectedSeat} compact={compact} />
+        </div>
       ))}
     </div>
   );

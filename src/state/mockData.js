@@ -19,7 +19,8 @@ export const defaultPlayers = [
   {
     seat: 1,
     occupied: true,
-    hands: [{ cards: ["10H", "6C"], value: 16, isBust: false, isSplit: false }],
+    // 5 cards -> demonstrates the "2 over 3" shaped hand layout.
+    hands: [{ cards: ["5D", "6C", "4H", "2S", "3D"], isBust: false, isSplit: false }],
     isTurn: false,
     confidence: "high", // high | medium | low
     lastAction: "HIT",
@@ -27,7 +28,12 @@ export const defaultPlayers = [
   {
     seat: 2,
     occupied: true,
-    hands: [{ cards: ["9S", "9D"], value: 18, isBust: false, isSplit: false }],
+    // A split pair: the second hand renders smaller, to the left of the
+    // main hand, and also demonstrates the 4-card "square" shape.
+    hands: [
+      { cards: ["9D", "3C", "2S", "2D"], isBust: false, isSplit: true },
+      { cards: ["9S", "6D"], isBust: false, isSplit: true },
+    ],
     isTurn: false,
     confidence: "medium",
     lastAction: "STAND",
@@ -35,7 +41,7 @@ export const defaultPlayers = [
   {
     seat: 3,
     occupied: true,
-    hands: [{ cards: ["AS", "7H"], value: 18, isBust: false, isSplit: false }],
+    hands: [{ cards: ["AS", "7H"], isBust: false, isSplit: false }],
     isTurn: true,
     confidence: "high",
     lastAction: null,
@@ -51,10 +57,11 @@ export const defaultPlayers = [
   {
     seat: 5,
     occupied: true,
-    hands: [{ cards: ["KC", "QD"], value: 20, isBust: false, isSplit: false }],
+    // 3 cards -> demonstrates the triangle-shaped hand layout.
+    hands: [{ cards: ["10C", "4D", "7S"], isBust: false, isSplit: false }],
     isTurn: false,
     confidence: "high",
-    lastAction: "STAND",
+    lastAction: "HIT",
   },
   {
     seat: 6,
@@ -66,8 +73,10 @@ export const defaultPlayers = [
   },
 ];
 
+// First card is the dealer's face-up card; second is the hole card, shown
+// face-down until holeCardKnown flips true (round resolution).
 export const defaultDealer = {
-  upCard: "7D",
+  cards: ["7D", "KH"],
   holeCardKnown: false,
 };
 
@@ -105,11 +114,17 @@ export const defaultAnalysis = {
   riskProfile: "Low-Moderate",
   decisionAccuracy: 0.91,
   bettingBehavior: "Flat betting, occasional 2x on true count > 2",
+  // Longer, human-readable summary the analysis engine generated from
+  // this player's recorded decisions — shown under the short stat line.
+  description:
+    "Across your last 37 recorded hands, you've followed basic strategy on the vast majority of hands, only deviating on a handful of soft-hand doubles against a dealer 6. Your bet sizing barely moves with the count, which keeps variance low but also caps your edge when the true count runs hot — increasing your spread on true counts above +2 is the single change most likely to raise your win rate. You tend to stand a beat too early on hard 12s against a dealer 2 or 3; tightening that up should close most of the remaining gap to perfect play.",
+  // Win rate per day the player was logged in and dealt hands.
   trend: [
-    { session: "Sep 12", accuracy: 0.82 },
-    { session: "Sep 15", accuracy: 0.85 },
-    { session: "Sep 19", accuracy: 0.88 },
-    { session: "Sep 23", accuracy: 0.91 },
+    { date: "Sep 12", winRate: 0.41 },
+    { date: "Sep 15", winRate: 0.44 },
+    { date: "Sep 19", winRate: 0.47 },
+    { date: "Sep 23", winRate: 0.46 },
+    { date: "Sep 27", winRate: 0.5 },
   ],
 };
 

@@ -46,9 +46,14 @@ body {
   margin: 0;
   font-family: var(--font-body);
   color: var(--white);
-  background:
-    radial-gradient(ellipse at center, var(--felt-light) 0%, var(--felt) 45%, var(--felt-dark) 100%);
+  /* Subtle vignette (dialed down from the original high-contrast radial)
+     plus a fine noise layer so the felt reads as fabric, not a flat fill. */
+  background-color: var(--felt);
+  background-image: url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyMDAiIGhlaWdodD0iMjAwIj4KPGZpbHRlciBpZD0ibiI+PGZlVHVyYnVsZW5jZSB0eXBlPSJmcmFjdGFsTm9pc2UiIGJhc2VGcmVxdWVuY3k9IjAuODUiIG51bU9jdGF2ZXM9IjMiIHN0aXRjaFRpbGVzPSJzdGl0Y2giLz48ZmVDb2xvck1hdHJpeCB0eXBlPSJtYXRyaXgiIHZhbHVlcz0iMCAwIDAgMCAwICAwIDAgMCAwIDAgIDAgMCAwIDAgMCAgMCAwIDAgMC4wNiAwIi8+PC9maWx0ZXI+CjxyZWN0IHdpZHRoPSIxMDAlIiBoZWlnaHQ9IjEwMCUiIGZpbHRlcj0idXJsKCNuKSIvPgo8L3N2Zz4K"),
+    radial-gradient(ellipse at center, var(--felt-light) 0%, var(--felt) 60%, var(--felt-dark) 130%);
+  background-blend-mode: overlay, normal;
   background-attachment: fixed;
+  background-size: 200px 200px, cover;
   -webkit-font-smoothing: antialiased;
 }
 
@@ -382,4 +387,105 @@ button.hlo-card {
   .hlo-page {
     padding: 14px 14px 84px;
   }
+}
+
+/* ---------------------------------------------------------------------
+   Card entrance animation (new cards "deal in")
+--------------------------------------------------------------------- */
+@keyframes hlo-card-deal {
+  from {
+    opacity: 0;
+    transform: translateY(-10px) scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+.hlo-card--enter {
+  animation: hlo-card-deal 0.32s cubic-bezier(0.2, 0.8, 0.3, 1) both;
+}
+
+/* ---------------------------------------------------------------------
+   Simplified "count" card variant + branded hidden-card back, used in
+   the Running Count component.
+--------------------------------------------------------------------- */
+.hlo-card--count {
+  position: relative;
+  flex-direction: column;
+  gap: 2px;
+  font-family: var(--font-mono);
+}
+.hlo-card__big-rank {
+  font-weight: 700;
+  line-height: 1;
+}
+.hlo-card__big-suit {
+  line-height: 1;
+}
+.hlo-card__count-badge {
+  position: absolute;
+  top: 3px;
+  right: 4px;
+  font-size: 0.62rem;
+  font-weight: 700;
+}
+.hlo-card--brandback {
+  background: var(--charcoal);
+  border: 2px solid var(--white);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* ---------------------------------------------------------------------
+   Segmented toggle (e.g. recommendation scope: All / Mine)
+--------------------------------------------------------------------- */
+.hlo-toggle {
+  display: inline-flex;
+  background: rgba(0, 0, 0, 0.25);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 999px;
+  padding: 2px;
+  gap: 2px;
+}
+.hlo-toggle__option {
+  border: none;
+  background: transparent;
+  color: var(--white-faint);
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 5px 12px;
+  border-radius: 999px;
+  cursor: pointer;
+}
+.hlo-toggle__option.active {
+  background: var(--brass);
+  color: var(--charcoal);
+}
+
+/* ---------------------------------------------------------------------
+   Strategy chart mini-table (inside the Recommendation component)
+--------------------------------------------------------------------- */
+.hlo-strategy-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+}
+.hlo-strategy-table th,
+.hlo-strategy-table td {
+  padding: 4px 6px;
+  text-align: center;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+.hlo-strategy-table th {
+  color: var(--white-faint);
+  font-weight: 600;
+  font-family: var(--font-body);
+}
+.hlo-strategy-table td.active-cell {
+  outline: 2px solid var(--brass);
+  outline-offset: -2px;
+  font-weight: 700;
 }

@@ -9,15 +9,17 @@ const CONFIDENCE_BORDER = {
 };
 
 // Rough seat anchor points as a percentage of the frame, arranged around a
-// six-seat semicircle table. A real pipeline would replace these with the
+// six-seat table. Seat 1 sits on the right of frame and seat 6 on the
+// left, matching the dealer's clockwise deal (right-to-left from a
+// player's point of view). A real pipeline would replace these with the
 // actual detected bounding-box coordinates per seat.
 const SEAT_ANCHORS = {
-  1: { left: "8%", top: "62%" },
-  2: { left: "24%", top: "80%" },
-  3: { left: "46%", top: "86%" },
-  4: { left: "68%", top: "80%" },
-  5: { left: "84%", top: "62%" },
-  6: { left: "46%", top: "18%" },
+  1: { left: "92%", top: "62%" },
+  2: { left: "76%", top: "80%" },
+  3: { left: "54%", top: "86%" },
+  4: { left: "32%", top: "80%" },
+  5: { left: "16%", top: "62%" },
+  6: { left: "50%", top: "18%" },
 };
 
 export default function CameraFeed({ compact = false }) {

@@ -1,12 +1,6 @@
 import React from "react";
-import { parseCard, SUIT_SYMBOL, RED_SUITS } from "./Card.jsx";
+import Card from "./Card.jsx";
 import { useAppState } from "../state/AppStateContext.jsx";
-
-function tagColor(v) {
-  if (v > 0) return "var(--confidence-high)";
-  if (v < 0) return "var(--red-bright)";
-  return "var(--white-faint)";
-}
 
 export default function CountHistory({ compact = false, maxRows }) {
   const { countHistory, shoeStats, recommendation, isCountHistoryVisible, setIsCountHistoryVisible } =
@@ -42,48 +36,28 @@ export default function CountHistory({ compact = false, maxRows }) {
           </div>
         </div>
 
-        {isCountHistoryVisible ? (
-          <div
-            style={{
-              display: "flex",
-              flexWrap: "wrap",
-              gap: 6,
-              maxHeight: compact ? 120 : 220,
-              overflowY: "auto",
-            }}
-          >
-            {rows.map((entry, i) => {
-              const { rank, suit } = parseCard(entry.card);
-              const isRed = RED_SUITS.includes(suit);
-              return (
-                <div
-                  key={i}
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 4,
-                    background: "rgba(255,255,255,0.05)",
-                    borderRadius: 6,
-                    padding: "4px 8px",
-                    fontSize: "0.78rem",
-                  }}
-                >
-                  <span style={{ color: isRed ? "var(--red-bright)" : "var(--white)", fontWeight: 700 }}>
-                    {rank}
-                    {SUIT_SYMBOL[suit]}
-                  </span>
-                  <span style={{ color: tagColor(entry.value), fontFamily: "var(--font-mono)" }}>
-                    {entry.value > 0 ? `+${entry.value}` : entry.value}
-                  </span>
-                </div>
-              );
-            })}
-          </div>
-        ) : (
-          <p style={{ color: "var(--white-faint)", fontSize: "0.8rem" }}>
-            Count history hidden — practicing mental counting.
+        {!isCountHistoryVisible && (
+          <p style={{ color: "var(--white-faint)", fontSize: "0.8rem", marginBottom: 10 }}>
+            Cards hidden — practicing mental counting.
           </p>
         )}
+
+        <div
+          className="hlo-card-row"
+          style={{ maxHeight: compact ? 130 : 240, overflowY: "auto", paddingBottom: 2 }}
+        >
+          {rows.map((entry, i) => (
+            <Card
+              key={i}
+              code={entry.card}
+              variant="count"
+              size="sm"
+              countValue={entry.value}
+              hidden={!isCountHistoryVisible}
+              animate={false}
+            />
+          ))}
+        </div>
       </div>
     </div>
   );

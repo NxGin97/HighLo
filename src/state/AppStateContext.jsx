@@ -53,6 +53,12 @@ export function AppStateProvider({ children }) {
   const [cameraConnected, setCameraConnected] = useState(Boolean(config.CAMERA_STREAM_URL));
   const [isCountHistoryVisible, setIsCountHistoryVisible] = useState(true);
 
+  // Controls whether the Recommendation component shows every seat's
+  // recommendation as each turn happens ("all") or only surfaces one when
+  // it's this viewer's own seat's turn ("mine"). Replaces the old
+  // guest-vs-logged-in-only visibility rule with a toggle anyone can use.
+  const [recommendationScope, setRecommendationScope] = useState("all");
+
   // Per-user card corrections. Keyed by "seat-handIndex-cardIndex" so a
   // correction only ever affects this browser's view, never the shared
   // detection state (per the "only affects the current user" requirement).
@@ -125,6 +131,8 @@ export function AppStateProvider({ children }) {
       cameraConnected,
       isCountHistoryVisible,
       setIsCountHistoryVisible,
+      recommendationScope,
+      setRecommendationScope,
       localCorrections,
       correctCard,
     }),
@@ -143,6 +151,7 @@ export function AppStateProvider({ children }) {
       midShoeJoin,
       cameraConnected,
       isCountHistoryVisible,
+      recommendationScope,
       localCorrections,
     ]
   );

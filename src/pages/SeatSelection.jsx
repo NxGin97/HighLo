@@ -1,11 +1,76 @@
-import React from "react";
+import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAppState } from "../state/AppStateContext.jsx";
+
+function DisclaimerModal({ seat, onCancel, onConfirm }) {
+  const [checked, setChecked] = useState(false);
+
+  return (
+    <div
+      role="dialog"
+      aria-label="Disclaimer"
+      style={{
+        position: "fixed",
+        inset: 0,
+        background: "rgba(8,10,9,0.7)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        zIndex: 200,
+        padding: 20,
+      }}
+    >
+      <div className="hlo-panel" style={{ width: 460, maxWidth: "100%" }}>
+        <div className="hlo-panel__header">
+          <h3 className="hlo-panel__title" style={{ fontSize: "1.2rem" }}>
+            Before you sit down
+          </h3>
+        </div>
+        <div className="hlo-panel__body">
+          <p style={{ fontSize: "0.85rem", color: "var(--white-dim)", lineHeight: 1.6 }}>
+            HighLo is provided strictly for <strong>educational purposes</strong> — to help you learn and
+            practice basic strategy and card counting concepts. It is not financial or gambling advice, and
+            nothing it shows is a guarantee of any outcome.
+          </p>
+          <p style={{ fontSize: "0.85rem", color: "var(--white-dim)", lineHeight: 1.6 }}>
+            Using a device or an app like this at an actual casino table is <strong>not permitted</strong> by
+            most casinos and may violate their rules or local law. HighLo and its creators are not liable for
+            any consequences — including being asked to leave or banned from a casino — that result from using
+            information learned through this app in a real venue.
+          </p>
+          <label style={{ display: "flex", alignItems: "flex-start", gap: 10, marginTop: 16, fontSize: "0.82rem", cursor: "pointer" }}>
+            <input
+              type="checkbox"
+              checked={checked}
+              onChange={(e) => setChecked(e.target.checked)}
+              style={{ marginTop: 3 }}
+            />
+            I have read and understand this disclaimer.
+          </label>
+          <div style={{ display: "flex", gap: 10, marginTop: 18 }}>
+            <button className="hlo-btn hlo-btn--ghost" style={{ flex: 1 }} onClick={onCancel}>
+              Cancel
+            </button>
+            <button
+              className="hlo-btn hlo-btn--primary"
+              style={{ flex: 1 }}
+              disabled={!checked}
+              onClick={onConfirm}
+            >
+              Continue to seat {seat}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export default function SeatSelection() {
   const { occupancy, selectedSeat, setSelectedSeat, isGuest, username } = useAppState();
   const navigate = useNavigate();
   const seats = Object.keys(occupancy).map(Number);
+  const [showDisclaimer, setShowDisclaimer] = useState(false);
 
   function pick(seat) {
     if (!occupancy[seat]) return;
@@ -33,69 +98,94 @@ export default function SeatSelection() {
         </p>
       </div>
 
-      {/* Semicircle table layout */}
-      <div
-        className="hlo-panel"
-        style={{
-          position: "relative",
-          width: 560,
-          maxWidth: "94vw",
-          height: 340,
-          borderRadius: "50% 50% 12px 12px / 60% 60% 12px 12px",
-          background: "linear-gradient(180deg, var(--felt-light), var(--felt))",
-        }}
-      >
-        {seats.map((seat, i) => {
-          const angle = (Math.PI / (seats.length - 1)) * i;
-          const radiusX = 230;
-          const radiusY = 130;
-          const left = 280 - radiusX * Math.cos(angle);
-          const top = 220 - radiusY * Math.sin(angle);
-          const occupied = occupancy[seat];
-          const isSelected = selectedSeat === seat;
-          return (
-            <button
-              key={seat}
-              onClick={() => pick(seat)}
-              disabled={!occupied}
-              style={{
-                position: "absolute",
-                left,
-                top,
-                transform: "translate(-50%, -50%)",
-                width: 84,
-                height: 84,
-                borderRadius: "50%",
-                border: isSelected ? "3px solid var(--brass)" : "2px solid rgba(244,242,234,0.3)",
-                background: occupied
-                  ? isSelected
-                    ? "var(--red)"
-                    : "var(--charcoal-light)"
-                  : "rgba(60,62,61,0.4)",
-                color: occupied ? "var(--white)" : "var(--white-faint)",
-                display: "flex",
-                flexDirection: "column",
-                alignItems: "center",
-                justifyContent: "center",
-                cursor: occupied ? "pointer" : "not-allowed",
-                fontWeight: 700,
-              }}
-            >
-              <span style={{ fontSize: "1.1rem" }}>{seat}</span>
-              <span style={{ fontSize: "0.6rem", fontWeight: 500 }}>{occupied ? "occupied" : "empty"}</span>
-            </button>
-          );
-        })}
+      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6 }}>
+        <span style={{ fontSize: "0.68rem", letterSpacing: "0.12em", color: "var(--white-faint)" }}>
+          DEALER
+        </span>
+
+        {/* Table felt, curve facing downward — this is the view a player
+            gets approaching the table, with the dealer standing beyond the
+            flat (top) edge. Seats run right-to-left, matching how the
+            dealer deals clockwise from a seated player's point of view. */}
+        <div
+          className="hlo-panel"
+          style={{
+            position: "relative",
+            width: 560,
+            maxWidth: "94vw",
+            height: 300,
+            borderRadius: "10px 10px 50% 50% / 10px 10px 65% 65%",
+            background: "linear-gradient(0deg, var(--felt-light), var(--felt))",
+          }}
+        >
+          {seats.map((seat, i) => {
+            // angle sweeps PI -> 0 so seat 1 lands on the right and seat 6
+            // on the left (right-to-left dealing order).
+            const angle = Math.PI - (Math.PI / (seats.length - 1)) * i;
+            const radiusX = 225;
+            const radiusY = 110;
+            const left = 280 - radiusX * Math.cos(angle);
+            const top = 60 + radiusY * Math.sin(angle);
+            const occupied = occupancy[seat];
+            const isSelected = selectedSeat === seat;
+            return (
+              <button
+                key={seat}
+                onClick={() => pick(seat)}
+                disabled={!occupied}
+                style={{
+                  position: "absolute",
+                  left,
+                  top,
+                  transform: "translate(-50%, -50%)",
+                  width: 84,
+                  height: 84,
+                  borderRadius: "50%",
+                  border: isSelected ? "3px solid var(--brass)" : "2px solid rgba(244,242,234,0.3)",
+                  background: occupied
+                    ? isSelected
+                      ? "var(--red)"
+                      : "var(--charcoal-light)"
+                    : "rgba(60,62,61,0.4)",
+                  color: occupied ? "var(--white)" : "var(--white-faint)",
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  cursor: occupied ? "pointer" : "not-allowed",
+                  fontWeight: 700,
+                }}
+              >
+                <span style={{ fontSize: "1.1rem" }}>{seat}</span>
+                <span style={{ fontSize: "0.6rem", fontWeight: 500 }}>{occupied ? "occupied" : "empty"}</span>
+              </button>
+            );
+          })}
+        </div>
+        <span style={{ fontSize: "0.68rem", letterSpacing: "0.12em", color: "var(--white-faint)" }}>
+          YOU ARE HERE
+        </span>
       </div>
 
       <button
         className="hlo-btn hlo-btn--primary"
         style={{ fontSize: "1rem", padding: "12px 32px" }}
         disabled={!selectedSeat}
-        onClick={() => navigate("/master")}
+        onClick={() => setShowDisclaimer(true)}
       >
         {selectedSeat ? `Sit at seat ${selectedSeat}` : "Select a seat to continue"}
       </button>
+
+      {showDisclaimer && (
+        <DisclaimerModal
+          seat={selectedSeat}
+          onCancel={() => setShowDisclaimer(false)}
+          onConfirm={() => {
+            setShowDisclaimer(false);
+            navigate("/master");
+          }}
+        />
+      )}
     </div>
   );
 }
