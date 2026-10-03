@@ -296,7 +296,7 @@ export default function RecommendationPanel({ mobile = false, fillHeight = false
                 {recommendation.action}
               </div>
               {overallConfidence !== null && (
-                <div style={{ textAlign: "center" }}>
+                <div style={{ textAlign: "left" }}>
                   <div
                     style={{
                       display: "flex",
