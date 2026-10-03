@@ -106,26 +106,37 @@ export default function SeatSelection() {
         {/* Table felt, curve facing downward — this is the view a player
             gets approaching the table, with the dealer standing beyond the
             flat (top) edge. Seats run right-to-left, matching how the
-            dealer deals clockwise from a seated player's point of view. */}
+            dealer deals clockwise from a seated player's point of view.
+            Seat positions and sizes are percentage/viewport-based (not
+            fixed pixels) so they scale down together with the table and
+            never overlap on a smaller screen. */}
         <div
           className="hlo-panel"
           style={{
             position: "relative",
             width: 560,
             maxWidth: "94vw",
-            height: 300,
+            height: "clamp(210px, 46vw, 300px)",
             borderRadius: "10px 10px 50% 50% / 10px 10px 65% 65%",
             background: "linear-gradient(0deg, var(--felt-light), var(--felt))",
           }}
         >
           {seats.map((seat, i) => {
-            // angle sweeps PI -> 0 so seat 1 lands on the right and seat 6
-            // on the left (right-to-left dealing order).
-            const angle = Math.PI - (Math.PI / (seats.length - 1)) * i;
-            const radiusX = 225;
-            const radiusY = 110;
-            const left = 280 - radiusX * Math.cos(angle);
-            const top = 60 + radiusY * Math.sin(angle);
+            // Horizontal position is spaced EVENLY by seat index (not by
+            // cosine of an angle) so every gap between adjacent seats is
+            // identical — seat 1 lands on the right, seat 6 on the left
+            // (right-to-left dealing order), with no bunching at the ends.
+            // An equal-angle/ellipse parametrization bunches seats near the
+            // ends of the arc (where cos changes slowest), which is exactly
+            // what caused 1/2 and 5/6 to overlap; even horizontal spacing
+            // fixes that regardless of screen size.
+            const t = seats.length === 1 ? 0 : i / (seats.length - 1);
+            const leftPct = 90 - 80 * t;
+            // Vertical position still follows a gentle arc (dips lowest in
+            // the middle seats) using the same t, purely for the curved
+            // "around the table" look — it has no bearing on overlap since
+            // that's driven by horizontal spacing above.
+            const topPct = 20 + 36 * Math.sin(Math.PI * t);
             const occupied = occupancy[seat];
             const isSelected = selectedSeat === seat;
             return (
@@ -135,11 +146,11 @@ export default function SeatSelection() {
                 disabled={!occupied}
                 style={{
                   position: "absolute",
-                  left,
-                  top,
+                  left: `${leftPct}%`,
+                  top: `${topPct}%`,
                   transform: "translate(-50%, -50%)",
-                  width: 84,
-                  height: 84,
+                  width: "clamp(48px, 13vw, 84px)",
+                  height: "clamp(48px, 13vw, 84px)",
                   borderRadius: "50%",
                   border: isSelected ? "3px solid var(--brass)" : "2px solid rgba(244,242,234,0.3)",
                   background: occupied
@@ -156,8 +167,10 @@ export default function SeatSelection() {
                   fontWeight: 700,
                 }}
               >
-                <span style={{ fontSize: "1.1rem" }}>{seat}</span>
-                <span style={{ fontSize: "0.6rem", fontWeight: 500 }}>{occupied ? "occupied" : "empty"}</span>
+                <span style={{ fontSize: "clamp(0.7rem, 2.6vw, 1.1rem)" }}>{seat}</span>
+                <span style={{ fontSize: "clamp(0.5rem, 1.6vw, 0.6rem)", fontWeight: 500 }}>
+                  {occupied ? "occupied" : "empty"}
+                </span>
               </button>
             );
           })}

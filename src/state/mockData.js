@@ -2,6 +2,7 @@
 // now. Everything here is a plausible in-progress hand so the dashboard
 // reads as live rather than blank. Replace with real detection payloads
 // once DETECTION_SOCKET_URL (see src/config.js) is wired to the Pi.
+import { hiLoValue, drawRandomCards } from "../lib/count.js";
 
 export const SEAT_COUNT = 6;
 
@@ -9,30 +10,37 @@ export const SEAT_COUNT = 6;
 export const defaultOccupancy = {
   1: true,
   2: true,
-  3: true, // the demo user sits here
-  4: false,
-  5: true,
-  6: false,
+  3: true,
+  4: false, // vacant seat
+  5: true, // the demo user's seat (active turn)
+  6: true,
 };
 
+// Seats are dealt in order 1 -> 6, so only seat 5 (the active turn) and
+// everything before it may have already acted / drawn extra cards. Seat 4
+// is vacant (skipped), and seat 6 hasn't been acted on yet, so it only
+// shows its original two cards.
 export const defaultPlayers = [
   {
     seat: 1,
     occupied: true,
-    // 5 cards -> demonstrates the "2 over 3" shaped hand layout.
+    // 5 cards -> demonstrates the "2 over 3" shaped hand layout. Already
+    // acted (stood), since seat 5 is the active turn.
     hands: [{ cards: ["5D", "6C", "4H", "2S", "3D"], isBust: false, isSplit: false }],
     isTurn: false,
     confidence: "high", // high | medium | low
-    lastAction: "HIT",
+    lastAction: "STAND",
   },
   {
     seat: 2,
     occupied: true,
-    // A split pair: the second hand renders smaller, to the left of the
-    // main hand, and also demonstrates the 4-card "square" shape.
+    // A split pair of face cards (J/K — both 10-value, the realistic case
+    // where a player is tempted to split tens): the second hand renders
+    // smaller, to the left of the main hand, and also demonstrates the
+    // 4-card "square" shape.
     hands: [
-      { cards: ["9D", "3C", "2S", "2D"], isBust: false, isSplit: true },
-      { cards: ["9S", "6D"], isBust: false, isSplit: true },
+      { cards: ["JD", "3C", "2S", "2D"], isBust: false, isSplit: true },
+      { cards: ["KS", "6D"], isBust: false, isSplit: true },
     ],
     isTurn: false,
     confidence: "medium",
@@ -41,10 +49,11 @@ export const defaultPlayers = [
   {
     seat: 3,
     occupied: true,
-    hands: [{ cards: ["AS", "7H"], isBust: false, isSplit: false }],
-    isTurn: true,
+    // Busted (24) — the one bust example in the mock UI.
+    hands: [{ cards: ["10D", "6C", "8H"], isBust: true, isSplit: false }],
+    isTurn: false,
     confidence: "high",
-    lastAction: null,
+    lastAction: "HIT",
   },
   {
     seat: 4,
@@ -57,53 +66,185 @@ export const defaultPlayers = [
   {
     seat: 5,
     occupied: true,
-    // 3 cards -> demonstrates the triangle-shaped hand layout.
-    hands: [{ cards: ["10C", "4D", "7S"], isBust: false, isSplit: false }],
-    isTurn: false,
+    // The active turn (and, in the seat-selection demo, "you").
+    hands: [{ cards: ["8D", "5H"], isBust: false, isSplit: false }],
+    isTurn: true,
     confidence: "high",
-    lastAction: "HIT",
+    lastAction: null,
   },
   {
     seat: 6,
-    occupied: false,
-    hands: [],
+    occupied: true,
+    // Soft 18 (A + 7) — hasn't acted yet, so just its original two cards.
+    hands: [{ cards: ["AS", "7D"], isBust: false, isSplit: false }],
     isTurn: false,
-    confidence: "low",
+    confidence: "high",
     lastAction: null,
   },
 ];
 
 // First card is the dealer's face-up card; second is the hole card, shown
-// face-down until holeCardKnown flips true (round resolution).
+// face-down until holeCardKnown flips true (round resolution). Like a
+// player seat, the dealer also gets a detection-confidence reading and
+// can have its cards corrected.
 export const defaultDealer = {
   cards: ["7D", "KH"],
   holeCardKnown: false,
+  confidence: "high",
 };
 
 export const defaultRecommendation = {
-  action: "HIT", // HIT | STAND | DOUBLE
+  action: "HIT", // HIT | STAND | DOUBLE | SPLIT | SURRENDER
   recommendationConfidence: 0.87,
   cardDetectionConfidence: 0.94,
   dealerBustProbability: 0.31,
-  runningCount: 4,
-  trueCount: 1.8,
 };
 
-export const defaultCountHistory = [
-  { card: "5D", value: 1, hand: 12 },
-  { card: "KC", value: -1, hand: 12 },
-  { card: "AS", value: -1, hand: 13 },
-  { card: "7H", value: 0, hand: 13 },
-  { card: "9S", value: 0, hand: 13 },
-  { card: "10H", value: -1, hand: 14 },
-  { card: "6C", value: 1, hand: 14 },
-  { card: "9D", value: 0, hand: 14 },
-  { card: "7D", value: 0, hand: 14 },
-];
+// Seats actually in the game, in dealing order (ascending seat number —
+// seat 4 is vacant and skipped, same as everywhere else).
+const occupiedSeatsInOrder = defaultPlayers.filter((p) => p.occupied);
+
+// --- Hand numbering --------------------------------------------------
+// Every Running Count entry — the current hand, the earlier filler hands,
+// and the few pre-shuffle reference cards — carries a `hand` number, and
+// the first card of each hand carries `handStart: true`. The UI (see
+// CountHistory.jsx) uses these to group cards by the hand they belong to
+// and to mark where a new hand begins. Hand 0 is the pre-shuffle
+// reference cards, 1..FILLER_HAND_COUNT are the earlier hands played
+// this shoe, and CURRENT_HAND_NUMBER is the hand in progress right now.
+const PRE_SHUFFLE_HAND_NUMBER = 0;
+const FILLER_HAND_COUNT = 13;
+export const CURRENT_HAND_NUMBER = FILLER_HAND_COUNT + 1;
+
+// Breaks a seat's hand(s) into "first card dealt", "second card dealt",
+// and "everything dealt during this seat's own turn" — the three slots
+// buildCurrentHandEntries() below deals out across all seats in turn.
+// For a SPLIT seat specifically, the original two-card deal was a pair
+// (both cards into hands[0] before the split), and splitting moves that
+// second card onto the new hands[1] as ITS first card — so the "second
+// card dealt" for a split seat is hands[1].cards[0], not hands[0].cards[1].
+// Everything else is cards added afterward, during the turn: the rest of
+// hands[0] first (hits on the original hand after splitting), then the
+// rest of hands[1] (hits on the split-off hand, dealt after), matching
+// how a split is actually played — finish hand one, then hand two.
+// Each returned card carries its (handIndex, cardIndex) address — the
+// same addressing `correctCard(seat, handIndex, cardIndex, …)` uses — so
+// a later manual correction can find and update the matching history
+// entry (see buildCurrentHandEntries and AppStateContext.correctCard).
+function splitHandParts(player) {
+  if (player.hands.length > 1) {
+    const firstCard = { code: player.hands[0].cards[0], handIndex: 0, cardIndex: 0 };
+    const secondCard = { code: player.hands[1].cards[0], handIndex: 1, cardIndex: 0 };
+    const turnCards = [
+      ...player.hands[0].cards.slice(1).map((code, i) => ({ code, handIndex: 0, cardIndex: i + 1 })),
+      ...player.hands[1].cards.slice(1).map((code, i) => ({ code, handIndex: 1, cardIndex: i + 1 })),
+    ];
+    return { firstCard, secondCard, turnCards };
+  }
+  const cards = player.hands[0].cards;
+  const firstCard = { code: cards[0], handIndex: 0, cardIndex: 0 };
+  const secondCard = { code: cards[1], handIndex: 0, cardIndex: 1 };
+  const turnCards = cards.slice(2).map((code, i) => ({ code, handIndex: 0, cardIndex: i + 2 }));
+  return { firstCard, secondCard, turnCards };
+}
+
+// The current hand's history entries, in the order the cards were
+// *actually dealt*, not just flattened by seat:
+//   1. Dealer's face-up card
+//   2. Each seat's FIRST card, in seat order
+//   3. Dealer's hole card — recorded as a "hidden" marker, since a real
+//      counter can't see its value until it's revealed
+//   4. Each seat's SECOND card, in seat order
+//   5. Everything dealt afterward during each seat's own turn — for a
+//      split seat, hits on the first hand THEN hits on the second hand,
+//      then it moves on to the next seat's turn
+// This is what the static Running Count history is built from below, so
+// it reads as a real deal sequence rather than cards grouped by seat.
+// Every entry is tagged with `seat`/`handIndex`/`cardIndex` (dealer's
+// seat is the string "dealer", matching how Dealer.jsx calls
+// correctCard) so a manual card correction can find its matching
+// history entry and update the running count to reflect it.
+function buildCurrentHandEntries() {
+  const entries = [];
+  const addCard = (seat, { code, handIndex, cardIndex }, handStart = false) =>
+    entries.push({
+      card: code,
+      value: hiLoValue(code),
+      seat,
+      handIndex,
+      cardIndex,
+      hand: CURRENT_HAND_NUMBER,
+      handStart,
+    });
+
+  // handStart only on the very first card of the hand (the dealer's
+  // face-up card) — that's the one boundary that marks "a new hand
+  // begins" for the current hand.
+  addCard("dealer", { code: defaultDealer.cards[0], handIndex: 0, cardIndex: 0 }, true);
+  occupiedSeatsInOrder.forEach((p) => addCard(p.seat, splitHandParts(p).firstCard));
+  entries.push({
+    isHiddenCard: true,
+    card: defaultDealer.cards[1],
+    seat: "dealer",
+    handIndex: 0,
+    cardIndex: 1,
+    hand: CURRENT_HAND_NUMBER,
+  });
+  occupiedSeatsInOrder.forEach((p) => addCard(p.seat, splitHandParts(p).secondCard));
+  occupiedSeatsInOrder.forEach((p) => splitHandParts(p).turnCards.forEach((c) => addCard(p.seat, c)));
+
+  return entries;
+}
+
+export const defaultCurrentHandEntries = buildCurrentHandEntries();
+
+// --- Running count history (static mock) -------------------------------
+// Splits `handCount` random hands' worth of cards into actual hand-sized
+// chunks (8-13 cards each, roughly what a 6-seat table deals/hits in one
+// hand) instead of one flat pile of filler, so each chunk can carry its
+// own `hand` number and a `handStart` flag on its first card — the same
+// grouping the current hand uses — letting the UI show real hand
+// boundaries for these earlier hands too, not just the hand in progress.
+function buildFillerHands(handCount) {
+  const entries = [];
+  for (let hand = 1; hand <= handCount; hand++) {
+    const cardCount = 8 + Math.floor(Math.random() * 6); // 8-13 cards
+    drawRandomCards(cardCount).forEach((card, i) => {
+      entries.push({ card, value: hiLoValue(card), hand, handStart: i === 0 });
+    });
+  }
+  return entries;
+}
+
+// A plain, non-updating snapshot: a few reference cards from the hand
+// right before the last shuffle, the shuffle marker itself, the earlier
+// hands dealt this shoe (as actual hand-sized groups, see
+// buildFillerHands), and finally the real, correctly-ordered cards from
+// the current hand (defaultCurrentHandEntries) appended last/most-recent.
+// Randomized once per load (still Hi-Lo-consistent) so it doesn't look
+// identical every time the app starts, but it no longer changes on its
+// own afterward.
+function buildDefaultCountHistory() {
+  const preShuffleCards = drawRandomCards(4).map((card, i) => ({
+    card,
+    value: hiLoValue(card),
+    hand: PRE_SHUFFLE_HAND_NUMBER,
+    handStart: i === 0,
+  }));
+  const shuffleMarker = { isShuffleMarker: true };
+  const fillerCards = buildFillerHands(FILLER_HAND_COUNT);
+  return [...preShuffleCards, shuffleMarker, ...fillerCards, ...defaultCurrentHandEntries];
+}
+
+export const defaultCountHistory = buildDefaultCountHistory();
+
+// How many history entries belong to "the current hand" — used by the
+// Force Shuffle action to know how much to keep as the post-shuffle
+// reference hand.
+export const CURRENT_HAND_CARD_COUNT = defaultCurrentHandEntries.length;
 
 export const defaultShoeStats = {
-  handsSinceShuffle: 14,
-  decksRemainingEstimate: 4.2,
+  handsSinceShuffle: CURRENT_HAND_NUMBER,
   lastShuffleHand: 0,
 };
 

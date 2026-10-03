@@ -4,6 +4,7 @@ import { useAppState } from "./state/AppStateContext.jsx";
 import { useIsMobile } from "./hooks.js";
 
 import Nav from "./components/Nav.jsx";
+import MobileHeader from "./components/MobileHeader.jsx";
 import MobileTabBar from "./components/MobileTabBar.jsx";
 
 import Login from "./pages/Login.jsx";
@@ -107,6 +108,7 @@ function DesktopLayout({ children }) {
 function MobileLayout({ children }) {
   return (
     <>
+      <MobileHeader />
       {children}
       <MobileTabBar />
       <VacancyWatcher />

@@ -8,22 +8,31 @@ const CONFIDENCE_BORDER = {
   low: "var(--confidence-low)",
 };
 
-// Rough seat anchor points as a percentage of the frame, arranged around a
-// six-seat table. Seat 1 sits on the right of frame and seat 6 on the
+// Rough seat anchor points as a percentage of the frame, arranged along a
+// single bottom arc. Seat 1 sits on the right of frame and seat 6 on the
 // left, matching the dealer's clockwise deal (right-to-left from a
-// player's point of view). A real pipeline would replace these with the
-// actual detected bounding-box coordinates per seat.
+// player's point of view). All six sit on the same arc — none at the
+// top-center "dealer" spot, which this view leaves empty, the way an
+// overhead table camera actually would. A real pipeline would replace
+// these with the actual detected bounding-box coordinates per seat.
+// Seats 2 and 5 are nudged down and in toward center (vs. a perfectly
+// even arc) so their boxes clear seats 1 and 6 respectively instead of
+// overlapping them.
 const SEAT_ANCHORS = {
-  1: { left: "92%", top: "62%" },
-  2: { left: "76%", top: "80%" },
-  3: { left: "54%", top: "86%" },
-  4: { left: "32%", top: "80%" },
-  5: { left: "16%", top: "62%" },
-  6: { left: "50%", top: "18%" },
+  1: { left: "92%", top: "55%" },
+  2: { left: "80%", top: "76%" },
+  3: { left: "63%", top: "82%" },
+  4: { left: "37%", top: "82%" },
+  5: { left: "20%", top: "76%" },
+  6: { left: "8%", top: "55%" },
 };
 
-export default function CameraFeed({ compact = false }) {
-  const { players, selectedSeat, cameraConnected } = useAppState();
+// The dealer stands at the top-center of the table, beyond the seats'
+// arc — the one spot the seat anchors above deliberately leave empty.
+const DEALER_ANCHOR = { left: "50%", top: "16%" };
+
+export default function CameraFeed() {
+  const { players, selectedSeat, cameraConnected, dealer } = useAppState();
   const streamUrl = config.CAMERA_STREAM_URL;
 
   return (
@@ -32,9 +41,10 @@ export default function CameraFeed({ compact = false }) {
       style={{
         position: "relative",
         width: "100%",
-        aspectRatio: compact ? "16 / 10" : "16 / 9",
+        height: "100%",
         borderRadius: "var(--radius-md)",
         overflow: "hidden",
+        containerType: "inline-size",
         background: streamUrl
           ? "#000"
           : "repeating-linear-gradient(45deg, #4b4d4d, #4b4d4d 10px, #444646 10px, #444646 20px)",
@@ -69,7 +79,45 @@ export default function CameraFeed({ compact = false }) {
         </div>
       )}
 
-      {/* Bounding boxes + seat labels, overlaid on top of feed or placeholder */}
+      {/* Dealer's own detection box — the one spot on the arc the seat
+          anchors leave empty — so the dealer's hand is visibly tracked
+          too, not just the players'. */}
+      <div
+        style={{
+          position: "absolute",
+          left: DEALER_ANCHOR.left,
+          top: DEALER_ANCHOR.top,
+          transform: "translate(-50%, -50%)",
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          gap: 4,
+        }}
+      >
+        <div
+          className="hlo-camera-box"
+          style={{ borderColor: CONFIDENCE_BORDER[dealer.confidence] || CONFIDENCE_BORDER.low }}
+        />
+        <span
+          style={{
+            fontFamily: "var(--font-mono)",
+            fontSize: "0.65rem",
+            padding: "1px 6px",
+            borderRadius: 4,
+            background: "rgba(27,28,29,0.85)",
+            color: "var(--white)",
+            border: "1px solid rgba(255,255,255,0.15)",
+            whiteSpace: "nowrap",
+          }}
+        >
+          DEALER
+        </span>
+      </div>
+
+      {/* Bounding boxes + seat labels, overlaid on top of feed or placeholder.
+          Sized in container-query units (cqw) rather than fixed pixels so
+          the box — including its border — shrinks smoothly as the feed
+          itself shrinks, instead of staying put and looking oversized. */}
       {players.map((p) => {
         if (!p.occupied) return null;
         const anchor = SEAT_ANCHORS[p.seat] || { left: "50%", top: "50%" };
@@ -89,13 +137,10 @@ export default function CameraFeed({ compact = false }) {
             }}
           >
             <div
+              className="hlo-camera-box"
               style={{
-                width: compact ? 56 : 84,
-                height: compact ? 40 : 58,
-                border: `2px solid ${CONFIDENCE_BORDER[p.confidence] || CONFIDENCE_BORDER.low}`,
-                borderRadius: 6,
+                borderColor: CONFIDENCE_BORDER[p.confidence] || CONFIDENCE_BORDER.low,
                 boxShadow: p.isTurn ? "0 0 0 3px rgba(168,134,63,0.55)" : "none",
-                background: "rgba(0,0,0,0.15)",
               }}
             />
             <span
@@ -107,10 +152,11 @@ export default function CameraFeed({ compact = false }) {
                 background: isSelected ? "var(--brass)" : "rgba(27,28,29,0.85)",
                 color: isSelected ? "var(--charcoal)" : "var(--white)",
                 border: "1px solid rgba(255,255,255,0.15)",
+                whiteSpace: "nowrap",
               }}
             >
               SEAT {p.seat}
-              {p.isTurn ? " \u2022 TURN" : ""}
+              {p.isTurn ? " • TURN" : ""}
             </span>
           </div>
         );

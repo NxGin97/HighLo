@@ -88,6 +88,7 @@ a {
    Shared layout primitives
 --------------------------------------------------------------------- */
 .hlo-panel {
+  position: relative;
   background: linear-gradient(180deg, var(--charcoal-light), var(--charcoal));
   border: 1px solid rgba(168, 134, 63, 0.25);
   border-radius: var(--radius-lg);
@@ -197,6 +198,16 @@ a {
   z-index: 20;
   box-shadow: var(--shadow-panel);
 }
+/* Portal variant (see InfoIcon in RecommendationPanel.jsx): positioned
+   by JS-measured viewport coordinates via `top`/`left`, rendered into
+   document.body, so it overlays on top of the page instead of ever
+   affecting a scrollable ancestor's content size. */
+.hlo-info-icon__tooltip--portal {
+  display: block;
+  position: fixed;
+  bottom: auto;
+  transform: translate(-50%, calc(-100% - 8px));
+}
 
 /* ---------------------------------------------------------------------
    Playing cards
@@ -227,12 +238,33 @@ button.hlo-card {
 .hlo-card--back {
   background: repeating-linear-gradient(
     135deg,
-    var(--felt-light) 0px,
-    var(--felt-light) 4px,
-    var(--felt-dark) 4px,
-    var(--felt-dark) 8px
+    var(--charcoal-lighter) 0px,
+    var(--charcoal-lighter) 4px,
+    var(--charcoal) 4px,
+    var(--charcoal) 8px
   );
-  border: 2px solid var(--brass);
+  border: 2px solid var(--white);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.hlo-card__hl-mark {
+  display: inline-flex;
+  align-items: baseline;
+  line-height: 1;
+  font-family: var(--font-display);
+}
+.hlo-card__hl-h,
+.hlo-card__hl-l {
+  font-size: 1.4em;
+  line-height: 1;
+  display: inline-block;
+}
+.hlo-card__hl-h {
+  color: var(--red-bright);
+}
+.hlo-card__hl-l {
+  color: var(--white);
 }
 .hlo-card--flagged {
   outline: 2px solid var(--confidence-low);
@@ -274,6 +306,34 @@ button.hlo-card {
 .hlo-card-row {
   display: flex;
   gap: 6px;
+  flex-wrap: wrap;
+}
+/* Groups the Running Count history's cards by the hand they belong to —
+   one bordered block per hand, labeled "Hand N" (or "Current hand"), so
+   it's visible at a glance which cards go together and where a new hand
+   starts. These blocks are themselves the flex children of .hlo-card-row
+   above, wrapping as a unit rather than letting individual cards from
+   different hands wrap mid-group. */
+.hlo-hand-group {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 5px;
+  padding: 6px 8px 8px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: var(--radius-sm);
+  background: rgba(255, 255, 255, 0.03);
+}
+.hlo-hand-group__label {
+  font-size: 0.62rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--white-faint);
+}
+.hlo-hand-group__cards {
+  display: flex;
+  align-items: center;
+  gap: 4px;
   flex-wrap: wrap;
 }
 
@@ -321,7 +381,7 @@ button.hlo-card {
   color: var(--white);
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 1px;
 }
 .hlo-nav__brand span {
   color: var(--red-bright);
@@ -407,14 +467,15 @@ button.hlo-card {
 }
 
 /* ---------------------------------------------------------------------
-   Simplified "count" card variant + branded hidden-card back, used in
-   the Running Count component.
+   Simplified "count" card variant, used in the Running Count component.
+   Padded well clear of the top-right badge so rank/badge never clip.
 --------------------------------------------------------------------- */
 .hlo-card--count {
   position: relative;
   flex-direction: column;
   gap: 2px;
   font-family: var(--font-mono);
+  padding: 10px 6px 6px;
 }
 .hlo-card__big-rank {
   font-weight: 700;
@@ -425,17 +486,52 @@ button.hlo-card {
 }
 .hlo-card__count-badge {
   position: absolute;
-  top: 3px;
-  right: 4px;
-  font-size: 0.62rem;
+  top: 4px;
+  right: 5px;
   font-weight: 700;
+  /* Matches the card's own face color instead of a grey chip, so the
+     badge reads as part of the card rather than an overlaid tag. */
+  background: inherit;
+  padding: 1px 4px;
+  border-radius: 4px;
+  line-height: 1.2;
 }
-.hlo-card--brandback {
-  background: var(--charcoal);
-  border: 2px solid var(--white);
+/* Full-width divider marking a shuffle in the Running Count history.
+   `flex-basis: 100%` inside the wrapping `.hlo-card-row` flex container
+   is what forces it onto its own row, pushing everything after it down
+   to a fresh line — a hard break, not just another icon in the row. */
+.hlo-shuffle-break {
+  flex: 1 1 100%;
+  width: 100%;
   display: flex;
   align-items: center;
+  gap: 10px;
+  margin: 6px 0;
+  color: var(--confidence-high);
+}
+.hlo-shuffle-break__line {
+  flex: 1;
+  height: 2px;
+  background: var(--confidence-high);
+  opacity: 0.45;
+  border-radius: 1px;
+}
+.hlo-shuffle-break__label {
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.hlo-hidden-marker {
+  background: rgba(168, 134, 63, 0.1);
+  border: 2px solid var(--brass);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
   justify-content: center;
+  color: var(--brass);
+  gap: 2px;
 }
 
 /* ---------------------------------------------------------------------
@@ -460,7 +556,7 @@ button.hlo-card {
   cursor: pointer;
 }
 .hlo-toggle__option.active {
-  background: var(--brass);
+  background: var(--confidence-high);
   color: var(--charcoal);
 }
 
@@ -488,4 +584,102 @@ button.hlo-card {
   outline: 2px solid var(--brass);
   outline-offset: -2px;
   font-weight: 700;
+}
+
+/* ---------------------------------------------------------------------
+   Player-seat status overlays: bust / blackjack / round outcome
+--------------------------------------------------------------------- */
+.hlo-status-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-lg);
+  pointer-events: none;
+  font-family: var(--font-display);
+  letter-spacing: 0.03em;
+  z-index: 5;
+}
+.hlo-status-overlay--bust {
+  /* Same transparent red tint used for a "lose" round-outcome overlay,
+     not a graphic X — just the tint plus bold white "BUST" text, shown
+     the instant a hand's total goes over 21 (not tied to round
+     resolution the way the win/lose/push overlay is). Pure white (not
+     the warm --white token) and a larger size so it reads clearly
+     against the red tint. */
+  background: rgba(209, 57, 63, 0.35);
+  color: #ffffff;
+  font-weight: 800;
+  font-size: 2.1rem;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+}
+.hlo-status-overlay--blackjack {
+  background: rgba(8, 20, 12, 0.5);
+  color: var(--confidence-high);
+  font-size: 2rem;
+}
+.hlo-round-overlay {
+  position: absolute;
+  inset: 0;
+  border-radius: var(--radius-lg);
+  pointer-events: none;
+  z-index: 6;
+  transition: opacity 0.4s ease;
+}
+.hlo-round-overlay--win {
+  background: rgba(63, 157, 92, 0.35);
+}
+.hlo-round-overlay--lose {
+  background: rgba(209, 57, 63, 0.35);
+}
+.hlo-round-overlay--push {
+  background: rgba(209, 161, 58, 0.35);
+}
+
+/* ---------------------------------------------------------------------
+   Dealer panel: same seat-card language as players, but saturated
+   (no brass turn-border — the dealer is never "in turn").
+--------------------------------------------------------------------- */
+.hlo-dealer-panel {
+  background: linear-gradient(180deg, rgba(167, 42, 46, 0.16), var(--charcoal-light) 70%);
+  border: 1px solid rgba(244, 242, 234, 0.25);
+  box-shadow: 0 0 0 1px rgba(244, 242, 234, 0.08) inset, var(--shadow-panel);
+}
+
+/* Fixed-width mobile recommendation action box: wide enough for
+   "SURRENDER" so the box never resizes when the action word changes. */
+.hlo-action-box--fixed {
+  width: 210px;
+  text-align: center;
+}
+@media (max-width: 420px) {
+  .hlo-action-box--fixed {
+    width: 178px;
+  }
+}
+
+/* ---------------------------------------------------------------------
+   Camera feed bounding-box overlay: sized in container-query units so
+   the box (border included) shrinks smoothly with the feed itself
+   rather than staying a fixed pixel size and looking out of place.
+--------------------------------------------------------------------- */
+.hlo-camera-box {
+  width: 13cqw;
+  height: 9cqw;
+  min-width: 22px;
+  min-height: 16px;
+  border-style: solid;
+  border-width: clamp(1px, 0.4cqw, 3px);
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.15);
+}
+
+/* ---------------------------------------------------------------------
+   Mobile-only top bar (logo + account actions, no page nav links)
+--------------------------------------------------------------------- */
+.hlo-nav--mobile {
+  padding: 10px 14px;
+  flex-wrap: wrap;
+  row-gap: 6px;
 }

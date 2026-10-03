@@ -1,20 +1,88 @@
-import React from "react";
+import React, { useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { useAppState } from "../state/AppStateContext.jsx";
 import { basicStrategyAction, buildStrategyRow, handTypeLabel } from "../lib/strategy.js";
+import { insuranceAdvice } from "../lib/count.js";
+import { parseCard } from "./Card.jsx";
 
 const ACTION_COLOR = {
   HIT: "var(--red-bright)",
   STAND: "#3f7fd1",
   DOUBLE: "var(--confidence-high)",
-  SPLIT: "var(--brass)",
-  SURRENDER: "var(--charcoal-lighter)",
+  SPLIT: "#d1a13a",
+  SURRENDER: "#161616",
+};
+const ACTION_TEXT_COLOR = {
+  HIT: "var(--white)",
+  STAND: "var(--white)",
+  DOUBLE: "var(--white)",
+  SPLIT: "var(--white)",
+  SURRENDER: "var(--white)",
 };
 
+// Matches the tooltip's CSS width (index.css .hlo-info-icon__tooltip)
+// and the minimum breathing room it keeps from the edge of the screen.
+const TOOLTIP_WIDTH = 200;
+const TOOLTIP_VIEWPORT_MARGIN = 8;
+
+/**
+ * InfoIcon
+ * The tooltip renders through a portal into document.body, positioned by
+ * the icon's actual on-screen coordinates (via getBoundingClientRect)
+ * rather than CSS `position: absolute` anchored to the icon itself.
+ * Metrics live inside this panel's scrollable body (`overflowY: auto`
+ * when `fillHeight` is set), and an absolutely-positioned tooltip wide
+ * enough to poke past a narrow grid column was getting counted as part
+ * of that container's scrollable content — which silently turns on a
+ * matching horizontal scrollbar too, per how CSS overflow-x/-y interact.
+ * A portal sidesteps that entirely: the tooltip overlays on top of
+ * whatever's beneath it instead of ever affecting any ancestor's size.
+ *
+ * The tooltip is normally centered under its icon (see the `translateX
+ * (-50%)` in the CSS), but centering alone can still push it past the
+ * left or right edge of the screen when the icon itself sits near an
+ * edge — e.g. "Dealer bust probability" on desktop, or a tapped metric
+ * on a narrow mobile screen. `show()` clamps the center point so the
+ * full 200px-wide tooltip always stays within the viewport instead of
+ * running off the side.
+ */
 function InfoIcon({ text }) {
+  const [coords, setCoords] = useState(null);
+  const iconRef = useRef(null);
+
+  function show() {
+    const rect = iconRef.current.getBoundingClientRect();
+    const halfWidth = TOOLTIP_WIDTH / 2;
+    const minCenter = halfWidth + TOOLTIP_VIEWPORT_MARGIN;
+    const maxCenter = window.innerWidth - halfWidth - TOOLTIP_VIEWPORT_MARGIN;
+    const center = Math.min(Math.max(rect.left + rect.width / 2, minCenter), maxCenter);
+    setCoords({ top: rect.top, left: center });
+  }
+  function hide() {
+    setCoords(null);
+  }
+
   return (
-    <span className="hlo-info-icon" tabIndex={0}>
+    <span
+      ref={iconRef}
+      className="hlo-info-icon"
+      tabIndex={0}
+      onMouseEnter={show}
+      onMouseLeave={hide}
+      onFocus={show}
+      onBlur={hide}
+    >
       i
-      <span className="hlo-info-icon__tooltip">{text}</span>
+      {coords &&
+        createPortal(
+          <div
+            className="hlo-info-icon__tooltip hlo-info-icon__tooltip--portal"
+            style={{ top: coords.top, left: coords.left }}
+          >
+            {text}
+          </div>,
+          document.body
+        )}
     </span>
   );
 }
@@ -96,14 +164,19 @@ function StrategyChart({ cards, dealerUpCode }) {
 
 /**
  * RecommendationPanel
- * Shows the recommendation for whichever seat is "in view": under the
- * "all" scope that's whoever's turn is currently active (visible to
- * everyone, every turn); under "mine" it's only shown when it's the
- * viewer's own seat's turn. The basic-strategy chart is cross-checked
- * against the engine's suggested action and nudges the displayed
- * confidence up (agreement) or down (disagreement).
+ * `mobile`: renders the compact, mobile-focused variant — forced to "my
+ *   turn only" (no scope toggle at all), a bigger fixed-width action box,
+ *   and everything below the action box collapsed by default (tap to
+ *   expand the full metrics/strategy-chart/analysis view).
+ * `fillHeight`: (desktop) stretches the panel to 100% of its flex
+ *   container and lets the body scroll internally, so it can be sized to
+ *   match the live feed panel next to it.
+ * `showAnalysis`: shows the "Your playstyle analysis" block at the
+ *   bottom. Off by default on the Master View's copy of this panel, so
+ *   it matches the live feed panel's height with no internal scroll —
+ *   the full report still lives on the Analysis Report page.
  */
-export default function RecommendationPanel({ compact = false }) {
+export default function RecommendationPanel({ mobile = false, fillHeight = false, showAnalysis = true }) {
   const {
     recommendation,
     midShoeJoin,
@@ -114,10 +187,13 @@ export default function RecommendationPanel({ compact = false }) {
     dealer,
     recommendationScope,
     setRecommendationScope,
+    countStats,
   } = useAppState();
+  const [mobileExpanded, setMobileExpanded] = useState(false);
 
   const activeTurnPlayer = players.find((p) => p.isTurn);
-  const showForSelfOnly = recommendationScope === "mine";
+  const effectiveScope = mobile ? "mine" : recommendationScope;
+  const showForSelfOnly = effectiveScope === "mine";
   const displayedPlayer =
     activeTurnPlayer && (!showForSelfOnly || activeTurnPlayer.seat === selectedSeat) ? activeTurnPlayer : null;
 
@@ -135,93 +211,176 @@ export default function RecommendationPanel({ compact = false }) {
       : Math.max(0.4, recommendation.recommendationConfidence - 0.15);
   }
 
+  // Overall confidence blends how sure the vision model is about the
+  // cards it read with how strongly the (strategy-checked) move is
+  // favored. Card detection carries real weight here: a shaky read
+  // undermines everything downstream of it.
+  const overallConfidence = activeHand
+    ? recommendation.cardDetectionConfidence * 0.4 + adjustedConfidence * 0.6
+    : null;
+  const detectionIsLow = recommendation.cardDetectionConfidence < 0.7;
+
+  const dealerUpIsAce = parseCard(dealerUpCard).rank === "A";
+  const insurance = dealerUpIsAce ? insuranceAdvice(countStats.trueCount) : null;
+
+  const panelStyle = fillHeight
+    ? { height: "100%", display: "flex", flexDirection: "column" }
+    : undefined;
+  const bodyStyle = fillHeight ? { flex: 1, overflowY: "auto" } : undefined;
+
   return (
-    <div className="hlo-panel">
+    <div className="hlo-panel" style={panelStyle}>
       <div className="hlo-panel__header">
         <h3 className="hlo-panel__title">Recommendation</h3>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          {midShoeJoin.isMidShoeJoin && (
+          {midShoeJoin.isMidShoeJoin && !mobile && (
             <span className="hlo-pill" title="Tracking started after cards were already dealt this shoe">
               Mid-shoe join
             </span>
           )}
-          <ScopeToggle scope={recommendationScope} setScope={setRecommendationScope} />
+          {!mobile && <ScopeToggle scope={recommendationScope} setScope={setRecommendationScope} />}
         </div>
       </div>
-      <div className="hlo-panel__body">
+      <div className="hlo-panel__body" style={bodyStyle}>
+        {/* Table-wide, not tied to whose turn it is: an insurance
+            call-out whenever the dealer's up card is an Ace. */}
+        {insurance && (
+          <div
+            className="hlo-pill"
+            style={{
+              display: "inline-flex",
+              marginBottom: 14,
+              color: insurance.takeInsurance ? "var(--confidence-high)" : "var(--white-faint)",
+              background: insurance.takeInsurance ? "rgba(63,157,92,0.15)" : undefined,
+            }}
+            title={insurance.reason}
+          >
+            Dealer shows Ace — {insurance.label}
+          </div>
+        )}
+
         {displayedPlayer ? (
           <>
-            <div style={{ fontSize: "0.72rem", color: "var(--white-faint)", marginBottom: 8 }}>
-              Seat {displayedPlayer.seat}
-              {displayedPlayer.seat === selectedSeat ? " (you)" : ""}'s turn
-            </div>
+            {!mobile && (
+              <div style={{ fontSize: "0.72rem", color: "var(--white-faint)", marginBottom: 8 }}>
+                Seat {displayedPlayer.seat}
+                {displayedPlayer.seat === selectedSeat ? " (you)" : ""}'s turn
+              </div>
+            )}
 
-            {/* Colored, high-contrast action box */}
+            {/* Colored, high-contrast action box + overall confidence */}
             <div
               style={{
-                display: "inline-block",
-                background: ACTION_COLOR[recommendation.action],
-                color: "var(--white)",
-                fontFamily: "var(--font-display)",
-                fontSize: compact ? "1.8rem" : "2.4rem",
-                letterSpacing: "0.04em",
-                padding: compact ? "8px 22px" : "10px 30px",
-                borderRadius: "var(--radius-md)",
-                boxShadow: "0 4px 14px rgba(0,0,0,0.35)",
-                marginBottom: 14,
+                display: "flex",
+                alignItems: "center",
+                gap: 12,
+                marginBottom: mobile && !mobileExpanded ? 4 : 14,
+                cursor: mobile ? "pointer" : "default",
               }}
+              onClick={mobile ? () => setMobileExpanded((v) => !v) : undefined}
             >
-              {recommendation.action}
+              <div
+                className={mobile ? "hlo-action-box--fixed" : ""}
+                style={{
+                  display: "inline-block",
+                  background: ACTION_COLOR[recommendation.action],
+                  color: ACTION_TEXT_COLOR[recommendation.action],
+                  fontFamily: "var(--font-display)",
+                  fontSize: mobile ? "2.1rem" : "2.4rem",
+                  letterSpacing: "0.04em",
+                  padding: mobile ? "12px 10px" : "10px 30px",
+                  borderRadius: "var(--radius-md)",
+                  boxShadow: "0 4px 14px rgba(0,0,0,0.35)",
+                }}
+              >
+                {recommendation.action}
+              </div>
+              {overallConfidence !== null && (
+                <div style={{ textAlign: "center" }}>
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      gap: 4,
+                      fontSize: "0.62rem",
+                      color: "var(--white-faint)",
+                    }}
+                  >
+                    Overall confidence
+                    <InfoIcon text="How much to trust this recommendation, blending how certain the vision model is about the cards it read with how strongly this move is favored by the basic-strategy chart below. This replaces a separate 'recommendation confidence' number — it's the same thing." />
+                  </div>
+                  <div
+                    style={{
+                      fontFamily: "var(--font-display)",
+                      fontSize: "1.6rem",
+                      color: detectionIsLow ? "var(--confidence-low)" : "var(--white)",
+                    }}
+                  >
+                    {Math.round(overallConfidence * 100)}%
+                  </div>
+                </div>
+              )}
+              {mobile && (
+                <span style={{ marginLeft: "auto", fontSize: "0.68rem", color: "var(--white-faint)" }}>
+                  {mobileExpanded ? "▲ tap to collapse" : "▼ tap for details"}
+                </span>
+              )}
             </div>
 
-            {matchesStrategy === false && (
-              <p style={{ fontSize: "0.72rem", color: "var(--confidence-medium)", marginTop: -6, marginBottom: 12 }}>
-                Basic strategy chart suggests {strategyAction} instead — confidence lowered.
+            {detectionIsLow && (
+              <p style={{ fontSize: "0.72rem", color: "var(--confidence-low)", fontWeight: 600, marginTop: -6, marginBottom: 12 }}>
+                ⚠ Card detection confidence is below 70% — this recommendation may be unreliable.
               </p>
             )}
 
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: compact ? "1fr 1fr" : "repeat(auto-fit, minmax(120px, 1fr))",
-                gap: 14,
-              }}
-            >
-              <Metric
-                label="Card detection confidence"
-                value={`${Math.round(recommendation.cardDetectionConfidence * 100)}%`}
-                info="How certain the vision model is that the cards it read for this hand are correct."
-              />
-              <Metric
-                label="Recommendation confidence"
-                value={`${Math.round(adjustedConfidence * 100)}%`}
-                info="How strongly this move is favored, adjusted up or down by whether it agrees with the basic-strategy chart below."
-              />
-              <Metric
-                label="Dealer bust probability"
-                value={`${Math.round(recommendation.dealerBustProbability * 100)}%`}
-                info="Estimated chance the dealer busts, based on their up card and the current count."
-              />
-              <Metric
-                label="True count"
-                value={recommendation.trueCount.toFixed(1)}
-                info="Running count divided by estimated decks remaining in the shoe."
-              />
-              <Metric
-                label="Running count"
-                value={recommendation.runningCount}
-                info="Hi-Lo running total of every card seen since the last shuffle."
-              />
-            </div>
+            {(!mobile || mobileExpanded) && (
+              <>
+                {matchesStrategy === false && (
+                  <p style={{ fontSize: "0.72rem", color: "var(--confidence-medium)", marginBottom: 12 }}>
+                    Basic strategy chart suggests {strategyAction} instead — confidence lowered.
+                  </p>
+                )}
 
-            {midShoeJoin.isMidShoeJoin && (
-              <p style={{ fontSize: "0.72rem", color: "var(--white-faint)", marginTop: 12 }}>
-                Count may be incomplete — tracking joined this shoe already in progress (
-                {Math.round(midShoeJoin.countReliability * 100)}% estimated reliability).
-              </p>
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: mobile ? "1fr 1fr" : "repeat(auto-fit, minmax(120px, 1fr))",
+                    gap: 14,
+                  }}
+                >
+                  <Metric
+                    label="Card detection confidence"
+                    value={`${Math.round(recommendation.cardDetectionConfidence * 100)}%`}
+                    info="How certain the vision model is that the cards it read for this hand are correct."
+                  />
+                  <Metric
+                    label="Dealer bust probability"
+                    value={`${Math.round(recommendation.dealerBustProbability * 100)}%`}
+                    info="Estimated chance the dealer busts, based on their up card and the current count."
+                  />
+                  <Metric
+                    label="Running count"
+                    value={countStats.runningCount}
+                    info="A continuous tally of card values that tracks the ratio of high cards to low cards remaining in the deck. A higher count favours the player."
+                  />
+                  <Metric
+                    label="True count"
+                    value={countStats.trueCount.toFixed(1)}
+                    info="Running count divided by the estimated decks remaining — the number that actually should influence bets and plays."
+                  />
+                </div>
+
+                {midShoeJoin.isMidShoeJoin && (
+                  <p style={{ fontSize: "0.72rem", color: "var(--white-faint)", marginTop: 12 }}>
+                    Count may be incomplete — tracking joined this shoe already in progress (
+                    {Math.round(midShoeJoin.countReliability * 100)}% estimated reliability).
+                  </p>
+                )}
+
+                <StrategyChart cards={activeHand.cards} dealerUpCode={dealerUpCard} />
+              </>
             )}
-
-            <StrategyChart cards={activeHand.cards} dealerUpCode={dealerUpCard} />
           </>
         ) : (
           <p style={{ color: "var(--white-faint)", fontSize: "0.85rem" }}>
@@ -231,7 +390,7 @@ export default function RecommendationPanel({ compact = false }) {
           </p>
         )}
 
-        {!isGuest && (
+        {showAnalysis && !isGuest && (!mobile || mobileExpanded) && (
           <div style={{ marginTop: 18, paddingTop: 14, borderTop: "1px solid rgba(255,255,255,0.08)" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <span style={{ fontSize: "0.8rem", fontWeight: 600 }}>Your playstyle analysis</span>

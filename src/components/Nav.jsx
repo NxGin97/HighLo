@@ -13,11 +13,11 @@ export default function Nav() {
   return (
     <nav className="hlo-nav">
       <div className="hlo-nav__brand">
-        HIGH<span>LO</span>
+        High<span>Lo</span>
       </div>
       <div className="hlo-nav__links">
         <NavLink to="/master" className={({ isActive }) => `hlo-nav__link ${isActive ? "active" : ""}`}>
-          Master View
+          Master
         </NavLink>
         <NavLink to="/table" className={({ isActive }) => `hlo-nav__link ${isActive ? "active" : ""}`}>
           Table

@@ -18,7 +18,9 @@ export default function TableView() {
 
       <div className="hlo-panel" style={{ marginBottom: 18 }}>
         <div className="hlo-panel__body">
-          <CameraFeed />
+          <div style={{ position: "relative", width: "100%", aspectRatio: "16 / 9" }}>
+            <CameraFeed />
+          </div>
         </div>
       </div>
 
@@ -27,7 +29,7 @@ export default function TableView() {
           <h3 className="hlo-panel__title">All Seats</h3>
         </div>
         <div className="hlo-panel__body">
-          <div style={{ marginBottom: 16 }}>
+          <div style={{ display: "flex", justifyContent: "center", marginBottom: 16 }}>
             <Dealer />
           </div>
           <ActivePlayers />
