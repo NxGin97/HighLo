@@ -18,6 +18,33 @@ const AppStateContext = createContext(null);
 
 const SEAT_STORAGE_KEY = "highlo:selectedSeat";
 
+// Per-device storage for everything a user can change locally: their
+// card corrections, the Running Count history those corrections edit,
+// and the shoe stats a manual Shuffle resets. Stored in this browser only
+// (never shared with other users), and deliberately NOT keyed by seat, so
+// switching seats keeps the same history. The version segment lets a
+// future change to the data shape start clean instead of loading stale
+// data saved by an older build.
+const LOCAL_STATE_PREFIX = "highlo:v3:";
+
+function loadLocal(key, fallback) {
+  try {
+    const raw = window.localStorage.getItem(LOCAL_STATE_PREFIX + key);
+    return raw ? JSON.parse(raw) : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+function saveLocal(key, value) {
+  try {
+    window.localStorage.setItem(LOCAL_STATE_PREFIX + key, JSON.stringify(value));
+  } catch {
+    // Storage full or blocked (e.g. private mode): the app still works,
+    // the changes just won't survive a refresh.
+  }
+}
+
 export function AppStateProvider({ children }) {
   // ---- Auth / session -------------------------------------------------
   // isGuest=true and isAuthenticated=false are the sane defaults for a
@@ -49,8 +76,10 @@ export function AppStateProvider({ children }) {
   const [players, setPlayers] = useState(defaultPlayers);
   const [dealer, setDealer] = useState(defaultDealer);
   const [recommendation, setRecommendation] = useState(defaultRecommendation);
-  const [countHistory, setCountHistory] = useState(defaultCountHistory);
-  const [shoeStats, setShoeStats] = useState(defaultShoeStats);
+  // Everyone starts from the same default history; after that, each
+  // user's edits (and manual Shuffle) live only in their own browser.
+  const [countHistory, setCountHistory] = useState(() => loadLocal("countHistory", defaultCountHistory));
+  const [shoeStats, setShoeStats] = useState(() => loadLocal("shoeStats", defaultShoeStats));
   const [analysis, setAnalysis] = useState(defaultAnalysis);
   const [midShoeJoin] = useState(defaultMidShoeJoin);
   const [cameraConnected, setCameraConnected] = useState(Boolean(config.CAMERA_STREAM_URL));
@@ -69,7 +98,11 @@ export function AppStateProvider({ children }) {
   // Per-user card corrections. Keyed by "seat-handIndex-cardIndex" (seat
   // can be a numeric seat or the string "dealer") so a correction only
   // ever affects this browser's view, never the shared detection state.
-  const [localCorrections, setLocalCorrections] = useState({});
+  const [localCorrections, setLocalCorrections] = useState(() => loadLocal("localCorrections", {}));
+
+  useEffect(() => saveLocal("countHistory", countHistory), [countHistory]);
+  useEffect(() => saveLocal("shoeStats", shoeStats), [shoeStats]);
+  useEffect(() => saveLocal("localCorrections", localCorrections), [localCorrections]);
 
   function correctCard(seat, handIndex, cardIndex, newCode) {
     setLocalCorrections((prev) => ({
@@ -105,8 +138,12 @@ export function AppStateProvider({ children }) {
   // added — no separate "runningCount" field to keep in sync by hand.
   const countStats = useMemo(() => computeCountStats(countHistory, TOTAL_DECKS), [countHistory]);
 
-  // ---- Force Shuffle (manual "camera detected a shuffle" override) ------
-  // Simulates a shuffle happening right now: keeps only the most recent
+  // ---- Force Shuffle (manual, THIS USER ONLY) ---------------------------
+  // Only changes this user's own (locally stored) history and count — it
+  // never reaches anyone else. A shuffle for everyone only happens when
+  // the camera detects a real one: that arrives as a new `countHistory`
+  // in the detection payload below, which replaces the history for all
+  // connected users. Simulates a shuffle happening right now: keeps only the most recent
   // hand's cards as the post-shuffle reference (per the spec: "last
   // completed hand before shuffle remains visible for reference"), drops
   // everything else, and resets the running count to zero. The confirm

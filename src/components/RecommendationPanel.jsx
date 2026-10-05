@@ -301,14 +301,13 @@ export default function RecommendationPanel({ mobile = false, fillHeight = false
                     style={{
                       display: "flex",
                       alignItems: "center",
-                      justifyContent: "center",
+                      justifyContent: "flex-start",
                       gap: 4,
                       fontSize: "0.62rem",
                       color: "var(--white-faint)",
                     }}
                   >
                     Overall confidence
-                    <InfoIcon text="How much to trust this recommendation, blending how certain the vision model is about the cards it read with how strongly this move is favored by the basic-strategy chart below. This replaces a separate 'recommendation confidence' number — it's the same thing." />
                   </div>
                   <div
                     style={{
@@ -367,7 +366,7 @@ export default function RecommendationPanel({ mobile = false, fillHeight = false
                   <Metric
                     label="True count"
                     value={countStats.trueCount.toFixed(1)}
-                    info="Running count divided by the estimated decks remaining — the number that actually should influence bets and plays."
+                    info="Running count divided by the estimated decks remaining — the number you use to determine how much you will bet"
                   />
                 </div>
 

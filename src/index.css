@@ -63,6 +63,17 @@ select {
   font-family: inherit;
 }
 
+/* iOS Safari auto-zooms the page when a focused input's font size is
+   under 16px. Keep inputs at 16px on touch/mobile screens so tapping a
+   field just opens the keyboard, with no zoom. */
+@media (max-width: 900px), (pointer: coarse) {
+  input,
+  select,
+  textarea {
+    font-size: 16px;
+  }
+}
+
 a {
   color: inherit;
 }
@@ -651,6 +662,10 @@ button.hlo-card {
    "SURRENDER" so the box never resizes when the action word changes. */
 .hlo-action-box--fixed {
   width: 210px;
+  /* Never let flexbox shrink this box: it used to give up a few pixels
+     whenever the "tap to collapse" / "tap for details" label beside it
+     changed width, which made the button visibly shift on expand. */
+  flex: 0 0 auto;
   text-align: center;
 }
 @media (max-width: 420px) {

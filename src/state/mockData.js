@@ -2,7 +2,7 @@
 // now. Everything here is a plausible in-progress hand so the dashboard
 // reads as live rather than blank. Replace with real detection payloads
 // once DETECTION_SOCKET_URL (see src/config.js) is wired to the Pi.
-import { hiLoValue, drawRandomCards } from "../lib/count.js";
+import { hiLoValue } from "../lib/count.js";
 
 export const SEAT_COUNT = 6;
 
@@ -105,16 +105,37 @@ export const defaultRecommendation = {
 const occupiedSeatsInOrder = defaultPlayers.filter((p) => p.occupied);
 
 // --- Hand numbering --------------------------------------------------
-// Every Running Count entry — the current hand, the earlier filler hands,
-// and the few pre-shuffle reference cards — carries a `hand` number, and
-// the first card of each hand carries `handStart: true`. The UI (see
-// CountHistory.jsx) uses these to group cards by the hand they belong to
-// and to mark where a new hand begins. Hand 0 is the pre-shuffle
-// reference cards, 1..FILLER_HAND_COUNT are the earlier hands played
-// this shoe, and CURRENT_HAND_NUMBER is the hand in progress right now.
-const PRE_SHUFFLE_HAND_NUMBER = 0;
-const FILLER_HAND_COUNT = 13;
-export const CURRENT_HAND_NUMBER = FILLER_HAND_COUNT + 1;
+// Every Running Count entry carries a `hand` number, and the first card of
+// each hand carries `handStart: true`. The UI (see CountHistory.jsx) uses
+// these to group cards by hand and mark where a new hand begins. Hand 0 is
+// the last hand played BEFORE the most recent shuffle, kept for reference
+// above the shuffle marker (it isn't part of the count). Hands
+// 1..PREVIOUS_HANDS.length are the hands already played since that
+// shuffle; CURRENT_HAND_NUMBER is the hand in progress right now.
+//
+// All of these hands are FIXED mock data — the same every load and for
+// every user — not generated at runtime. Each one was simulated once from
+// a 6-deck shoe (dealer + 4-5 players, everyone dealt at least two cards,
+// players hitting per basic strategy, dealer standing on 17) and pasted
+// in below, so it reads like real blackjack. They were picked so the
+// running count since the shuffle, including the current hand's visible
+// cards, comes out to +3. Cards are
+// listed in the order they were dealt: dealer up card, each player's
+// first card, dealer hole card, each player's second card, then every
+// hit in turn (players first, dealer last).
+const PRE_SHUFFLE_HAND =
+["10S", "5H", "KD", "3H", "8S", "QH", "6C", "10D", "JD", "KS", "QC", "9H"];
+
+const PREVIOUS_HANDS = [
+  ["3H", "QD", "JD", "QD", "9S", "JC", "KH", "5H", "8H", "4D", "8S"],
+  ["3S", "KH", "10D", "8D", "4C", "2H", "5C", "KH", "8S", "3D", "AD", "10S", "3S", "5H", "7D", "QD"],
+  ["8S", "7H", "3H", "2C", "AH", "7S", "10S", "2C", "8S", "JS", "AC", "3C", "KD", "5C", "7D", "AS", "3D", "KC", "9C", "7H"],
+  ["10H", "AC", "2S", "7C", "AS", "9H", "5S", "6H", "7D", "QS", "4H", "9D", "6H"],
+  ["KH", "2H", "7H", "QH", "10S", "JS", "5S", "8D", "10C", "7C", "JC", "4S", "2D", "4H", "KC", "KH", "AD", "AS"],
+  ["AC", "2H", "2H", "6D", "8H", "KD", "JC", "5S", "QD", "3D", "10H", "2D", "4D", "AC", "6S", "3H", "10H", "8C", "8H"],
+  ["7H", "3D", "2H", "6S", "9H", "3C", "KH", "JH", "AD", "10H", "AD", "6H", "3D", "JD", "2S", "JS"],
+];
+export const CURRENT_HAND_NUMBER = PREVIOUS_HANDS.length + 1;
 
 // Breaks a seat's hand(s) into "first card dealt", "second card dealt",
 // and "everything dealt during this seat's own turn" — the three slots
@@ -199,41 +220,20 @@ function buildCurrentHandEntries() {
 export const defaultCurrentHandEntries = buildCurrentHandEntries();
 
 // --- Running count history (static mock) -------------------------------
-// Splits `handCount` random hands' worth of cards into actual hand-sized
-// chunks (8-13 cards each, roughly what a 6-seat table deals/hits in one
-// hand) instead of one flat pile of filler, so each chunk can carry its
-// own `hand` number and a `handStart` flag on its first card — the same
-// grouping the current hand uses — letting the UI show real hand
-// boundaries for these earlier hands too, not just the hand in progress.
-function buildFillerHands(handCount) {
-  const entries = [];
-  for (let hand = 1; hand <= handCount; hand++) {
-    const cardCount = 8 + Math.floor(Math.random() * 6); // 8-13 cards
-    drawRandomCards(cardCount).forEach((card, i) => {
-      entries.push({ card, value: hiLoValue(card), hand, handStart: i === 0 });
-    });
-  }
-  return entries;
+// Hand 0 (before the shuffle), the shuffle marker, the previous hands
+// above in order, then the real, correctly ordered cards from the current
+// hand (defaultCurrentHandEntries).
+function handEntries(cards, hand) {
+  return cards.map((card, cardIdx) => ({ card, value: hiLoValue(card), hand, handStart: cardIdx === 0 }));
 }
 
-// A plain, non-updating snapshot: a few reference cards from the hand
-// right before the last shuffle, the shuffle marker itself, the earlier
-// hands dealt this shoe (as actual hand-sized groups, see
-// buildFillerHands), and finally the real, correctly-ordered cards from
-// the current hand (defaultCurrentHandEntries) appended last/most-recent.
-// Randomized once per load (still Hi-Lo-consistent) so it doesn't look
-// identical every time the app starts, but it no longer changes on its
-// own afterward.
 function buildDefaultCountHistory() {
-  const preShuffleCards = drawRandomCards(4).map((card, i) => ({
-    card,
-    value: hiLoValue(card),
-    hand: PRE_SHUFFLE_HAND_NUMBER,
-    handStart: i === 0,
-  }));
-  const shuffleMarker = { isShuffleMarker: true };
-  const fillerCards = buildFillerHands(FILLER_HAND_COUNT);
-  return [...preShuffleCards, shuffleMarker, ...fillerCards, ...defaultCurrentHandEntries];
+  return [
+    ...handEntries(PRE_SHUFFLE_HAND, 0),
+    { isShuffleMarker: true },
+    ...PREVIOUS_HANDS.flatMap((cards, i) => handEntries(cards, i + 1)),
+    ...defaultCurrentHandEntries,
+  ];
 }
 
 export const defaultCountHistory = buildDefaultCountHistory();

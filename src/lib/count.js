@@ -1,4 +1,4 @@
-import { buildDeck, parseCard } from "../components/Card.jsx";
+import { parseCard } from "../components/Card.jsx";
 
 export const TOTAL_DECKS = 6;
 export const CARDS_PER_DECK = 52;
@@ -9,19 +9,6 @@ export function hiLoValue(code) {
   if (["2", "3", "4", "5", "6"].includes(rank)) return 1;
   if (["7", "8", "9"].includes(rank)) return 0;
   return -1; // 10, J, Q, K, A
-}
-
-/** Draws `count` random cards from a `decks`-deck shoe (with replacement
- *  across the pool, which is a fine approximation for mock data). */
-export function drawRandomCards(count, decks = TOTAL_DECKS) {
-  const pool = [];
-  for (let d = 0; d < decks; d++) pool.push(...buildDeck());
-  const out = [];
-  for (let i = 0; i < count && pool.length > 0; i++) {
-    const idx = Math.floor(Math.random() * pool.length);
-    out.push(pool.splice(idx, 1)[0]);
-  }
-  return out;
 }
 
 /**
